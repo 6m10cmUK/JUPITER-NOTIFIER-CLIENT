@@ -1,0 +1,174 @@
+package com.jupiter.notifier
+
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.graphics.PixelFormat
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.os.Vibrator
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.WindowManager
+import android.widget.TextView
+import androidx.core.content.getSystemService
+import android.media.AudioManager
+import android.media.ToneGenerator
+
+class OverlayService : Service() {
+    
+    private lateinit var windowManager: WindowManager
+    private var overlayView: View? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var toneGenerator: ToneGenerator? = null
+    
+    companion object {
+        private const val DISPLAY_DURATION = 10000L // 10秒
+        var instance: OverlayService? = null
+    }
+    
+    override fun onBind(intent: Intent?): IBinder? = null
+    
+    override fun onCreate() {
+        super.onCreate()
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        instance = this
+    }
+    
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.let {
+            val title = it.getStringExtra("title") ?: "Discord通知"
+            val message = it.getStringExtra("message") ?: ""
+            val sender = it.getStringExtra("sender")
+            
+            showOverlay(title, message, sender)
+        }
+        
+        return START_NOT_STICKY
+    }
+    
+    private fun showOverlay(title: String, message: String, sender: String?) {
+        // 既存のオーバーレイを削除
+        removeOverlay()
+        
+        // オーバーレイビューを作成
+        val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
+        overlayView = inflater.inflate(R.layout.overlay_notification, null)
+        
+        // ビューの設定
+        overlayView?.apply {
+            findViewById<TextView>(R.id.overlayMessageText).text = message
+            
+            val senderTextView = findViewById<TextView>(R.id.overlaySenderText)
+            if (sender != null) {
+                senderTextView.text = "From: $sender"
+                senderTextView.visibility = View.VISIBLE
+            } else {
+                senderTextView.visibility = View.GONE
+            }
+            
+            // クリックで閉じる
+            setOnClickListener {
+                removeOverlay(sendDismiss = true)
+            }
+            
+            // 透明度設定
+            alpha = 0.65f
+        }
+        
+        // WindowManagerのパラメータ設定
+        val params = WindowManager.LayoutParams().apply {
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+            type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
+            }
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS or
+                    WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION or
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            format = PixelFormat.TRANSLUCENT
+            gravity = Gravity.CENTER
+        }
+        
+        // オーバーレイを表示
+        windowManager.addView(overlayView, params)
+        
+        // バイブレーションとアラーム音
+        vibrate()
+        startAlarmSound()
+        
+        // 10秒後に自動的に閉じる
+        handler.postDelayed({
+            removeOverlay()
+        }, DISPLAY_DURATION)
+    }
+    
+    private fun removeOverlay(sendDismiss: Boolean = false) {
+        overlayView?.let {
+            windowManager.removeView(it)
+            overlayView = null
+        }
+        handler.removeCallbacksAndMessages(null)
+        stopAlarmSound()
+        
+        // 他のクライアントにも消去を通知
+        if (sendDismiss) {
+            WebSocketService.instance?.sendDismissNotification()
+        }
+    }
+    
+    fun dismissFromRemote() {
+        removeOverlay(sendDismiss = false)
+    }
+    
+    private fun startAlarmSound() {
+        try {
+            // アラーム音量で再生
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val alarmVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            val volumePercent = (alarmVolume.toFloat() / maxVolume.toFloat() * 100).toInt()
+            
+            toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, volumePercent)
+            
+            // 10秒間連続で音を鳴らす
+            handler.post(object : Runnable {
+                override fun run() {
+                    toneGenerator?.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 1000)
+                    handler.postDelayed(this, 1100) // 1.1秒ごとに繰り返し
+                }
+            })
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    
+    private fun stopAlarmSound() {
+        toneGenerator?.release()
+        toneGenerator = null
+    }
+    
+    private fun vibrate() {
+        val vibrator = getSystemService<Vibrator>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator?.vibrate(android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator?.vibrate(100)
+        }
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        removeOverlay()
+    }
+}

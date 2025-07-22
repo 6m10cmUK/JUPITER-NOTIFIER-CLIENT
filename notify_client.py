@@ -36,6 +36,7 @@ class FullScreenNotification:
         self.windows = []  # 各モニター用のウィンドウリスト
         self.is_showing = False
         self.close_event = threading.Event()
+        self.websocket = None
         
     def show_notification(self, title, message, duration=DEFAULT_DURATION, sender=None):
         """
@@ -114,32 +115,19 @@ class FullScreenNotification:
                     sender_label.pack(pady=(100, 20))
                     sender_label.bind('<Button-1>', lambda e: self.close_all_notifications())
                 
-                # タイトル
-                title_font = font.Font(size=72, weight='bold')
-                title_label = tk.Label(
-                    main_frame, 
-                    text=title, 
-                    font=title_font,
-                    fg='white',
-                    bg=BACKGROUND_COLOR,
-                    cursor='hand2'
-                )
-                title_label.pack(expand=True, pady=(0, 50))
-                title_label.bind('<Button-1>', lambda e: self.close_all_notifications())
-                
-                # メッセージ
-                msg_font = font.Font(size=48)
+                # メッセージ（大きく表示）
+                msg_font = font.Font(size=96, weight='bold')
                 msg_label = tk.Label(
                     main_frame,
                     text=message,
                     font=msg_font,
                     fg='white',
                     bg=BACKGROUND_COLOR,
-                    wraplength=1200,
+                    wraplength=1600,
                     justify='center',
                     cursor='hand2'
                 )
-                msg_label.pack(expand=True)
+                msg_label.pack(expand=True, pady=(0, 50))
                 msg_label.bind('<Button-1>', lambda e: self.close_all_notifications())
                 
                 # 操作説明
@@ -175,7 +163,7 @@ class FullScreenNotification:
         thread.daemon = True
         thread.start()
     
-    def close_all_notifications(self):
+    def close_all_notifications(self, send_dismiss=True):
         """全ての通知ウィンドウを閉じる"""
         if not self.windows:
             return
@@ -191,11 +179,25 @@ class FullScreenNotification:
         self.windows = []
         self.is_showing = False
         self.close_event.set()
+        
+        # 他のクライアントにも消去を通知
+        if send_dismiss and hasattr(self, 'websocket'):
+            asyncio.create_task(self.send_dismiss_notification())
 
 
 async def connect_to_bot():
     """Discord BotのWebSocketサーバーに接続"""
     notifier = FullScreenNotification()
+    
+    async def send_dismiss_notification():
+        """消去通知を送信"""
+        if notifier.websocket:
+            await notifier.websocket.send(json.dumps({
+                "type": "dismiss_notification",
+                "client_type": "windows_notifier"
+            }))
+    
+    notifier.send_dismiss_notification = send_dismiss_notification
     
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] JUPITER NOTIFIER CLIENT 起動")
     print(f"接続先: {WS_SERVER_URL}")
@@ -203,6 +205,7 @@ async def connect_to_bot():
     while True:
         try:
             async with websockets.connect(WS_SERVER_URL) as websocket:
+                notifier.websocket = websocket
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] サーバーに接続しました")
                 
                 # 登録メッセージを送信
@@ -228,6 +231,10 @@ async def connect_to_bot():
                                 data.get('duration', DEFAULT_DURATION),
                                 data.get('sender')
                             )
+                        
+                        elif data.get('type') == 'dismiss_notification':
+                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知受信: {data.get('dismissed_by')}")
+                            notifier.close_all_notifications(send_dismiss=False)
                             
                     except json.JSONDecodeError as e:
                         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] JSONパースエラー: {e}")
