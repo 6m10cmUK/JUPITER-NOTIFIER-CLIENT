@@ -367,8 +367,19 @@ class BackgroundMonitor:
                 await self.ws.close()
             logger.info("Monitor stopped")
 
+def save_pid():
+    """Save current process ID to file"""
+    try:
+        with open('monitor.pid', 'w') as f:
+            f.write(str(os.getpid()))
+    except Exception as e:
+        logger.error(f"Failed to save PID: {e}")
+
 def main():
     """Main entry point"""
+    # Save process ID
+    save_pid()
+    
     print("=" * 60)
     print("     BACKGROUND NOTIFICATION MONITOR")
     print("=" * 60)
