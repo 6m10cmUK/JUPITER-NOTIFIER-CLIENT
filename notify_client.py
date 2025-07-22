@@ -19,7 +19,7 @@ from datetime import datetime
 
 # 設定
 WS_SERVER_URL = os.getenv('WS_SERVER_URL', 'ws://localhost:8080')
-DEFAULT_DURATION = 5000  # ミリ秒
+DEFAULT_DURATION = 10000  # 10秒固定
 BACKGROUND_COLOR = '#610610'  # 暗い赤色
 
 
