@@ -1,23 +1,24 @@
 @echo off
-echo === Windows通知監視システムのセットアップ ===
+chcp 932 > nul
+echo === Windows Notification Monitor Setup ===
 echo.
 
-echo Python依存関係をインストールしています...
+echo Installing Python dependencies...
 pip install winrt-runtime
 pip install websockets
 pip install pywin32
 pip install comtypes
 
 echo.
-echo インストール完了！
+echo Installation complete!
 echo.
-echo 使用方法:
-echo 1. Discordボット（WebSocketサーバー）を起動
-echo 2. notification_monitor.py を実行
+echo Usage:
+echo 1. Start Discord bot (WebSocket server)
+echo 2. Run notification_monitor.py
 echo.
-echo 注意事項:
-echo - Windows 10/11 バージョン1809以降が必要です
-echo - 初回実行時に通知へのアクセス許可を求められます
-echo - 設定 ^> プライバシー ^> 通知 で許可してください
+echo Note:
+echo - Windows 10/11 version 1809 or later required
+echo - Grant notification access when prompted
+echo - Settings - Privacy - Notifications
 echo.
 pause

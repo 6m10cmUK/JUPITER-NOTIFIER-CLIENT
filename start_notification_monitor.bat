@@ -1,24 +1,25 @@
 @echo off
+chcp 932 > nul
 title Windows Notification Monitor
 
-echo === Windows通知監視システム ===
+echo === Windows Notification Monitor ===
 echo.
-echo Slackを含むすべてのWindows通知を監視して
-echo WebSocketサーバーに転送します
+echo Monitoring all Windows notifications including Slack
+echo and forwarding to WebSocket server
 echo.
-echo 前提条件:
-echo - Discordボット（ポート8080）が起動していること
-echo - Slackデスクトップアプリがインストールされていること
+echo Prerequisites:
+echo - Discord bot running on port 8080
+echo - Slack desktop app installed
 echo.
-echo 開始しています...
+echo Starting...
 echo.
 
 python notification_monitor.py
 
 if errorlevel 1 (
     echo.
-    echo エラーが発生しました
-    echo 依存関係をインストールしてください: install_monitor.bat
+    echo Error occurred
+    echo Please install dependencies: install_monitor.bat
     echo.
     pause
 )

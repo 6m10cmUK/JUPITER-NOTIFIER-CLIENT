@@ -32,11 +32,13 @@ if sys.platform == 'win32':
     
     # Windows Runtime
     try:
-        import winrt
-        from winrt.windows.ui.notifications import ToastNotificationManager
+        import winrt.windows.ui.notifications as notifications
+        import winrt.windows.ui.notifications.management as management
         from winrt.windows.ui.notifications.management import UserNotificationListener, UserNotificationListenerAccessStatus
-    except ImportError:
-        print("winrt モジュールが必要です: pip install winrt")
+    except ImportError as e:
+        print("Error importing winrt modules:", e)
+        print("\nPlease install: pip install winrt-runtime")
+        print("Note: This requires Windows 10 version 1809 or later")
         sys.exit(1)
 
 # ロギング設定
@@ -96,25 +98,32 @@ class NotificationMonitor:
         try:
             # 通知リスナーのアクセス許可をリクエスト
             listener = UserNotificationListener.get_current()
-            access_status = await listener.request_access_async()
+            # request_access_asyncはIAsyncOperationを返すので、結果を取得
+            async_op = listener.request_access_async()
+            
+            # 非同期操作の完了を待つ
+            import asyncio
+            loop = asyncio.get_event_loop()
+            access_status = await loop.run_in_executor(None, lambda: async_op.get())
             
             if access_status == UserNotificationListenerAccessStatus.ALLOWED:
-                logger.info("通知へのアクセスが許可されました")
+                logger.info("Notification access granted")
                 return True
             else:
-                logger.error(f"通知へのアクセスが拒否されました: {access_status}")
+                logger.error(f"Notification access denied: {access_status}")
                 return False
         except Exception as e:
-            logger.error(f"アクセス許可リクエストエラー: {e}")
+            logger.error(f"Access request error: {e}")
             return False
     
     async def get_notifications(self):
         """現在の通知を取得"""
         try:
             listener = UserNotificationListener.get_current()
-            notifications = await listener.get_notifications_async(
-                UserNotificationListenerAccessStatus.ALLOWED
-            )
+            # get_notifications_asyncもIAsyncOperationを返す
+            async_op = listener.get_notifications_async()
+            loop = asyncio.get_event_loop()
+            notifications = await loop.run_in_executor(None, lambda: async_op.get())
             
             for notification in notifications:
                 try:
