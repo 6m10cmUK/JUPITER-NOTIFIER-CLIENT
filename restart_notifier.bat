@@ -10,18 +10,22 @@ if %errorlevel%==0 (
 )
 
 REM Wait a moment
-timeout /t 2 /nobreak >nul
+timeout /t 2 >nul
 
 REM Change to script directory
 cd /d "%~dp0"
 
 REM Start notification client
 echo [JUPITER NOTIFIER] Starting...
-python notify_client.py
+echo Press Ctrl+C to stop the notification client
+echo.
+start /B /WAIT python notify_client.py
 
-REM Pause if error occurred
-if %errorlevel% neq 0 (
+REM Exit code handling
+if %errorlevel%==0 (
     echo.
-    echo An error occurred
-    pause
+    echo [JUPITER NOTIFIER] Stopped normally
+) else (
+    echo.
+    echo [JUPITER NOTIFIER] Stopped with error code: %errorlevel%
 )
