@@ -60,15 +60,11 @@ WS_SERVER_URL=ws://192.168.1.100:8080
 
 ### 3. 起動方法
 
-#### Northflank接続（通常）
 ```bash
 run.bat
 ```
 
-#### ローカルテスト
-```bash
-run-local.bat
-```
+または`start.bat`をダブルクリック
 
 #### 自動起動設定
 管理者権限で実行：
