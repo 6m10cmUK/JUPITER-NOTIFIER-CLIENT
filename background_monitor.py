@@ -31,14 +31,33 @@ if sys.platform == 'win32':
         import win32com.client
         
         # Try to import winrt for notification listener
+        WINRT_AVAILABLE = False
         try:
-            from winrt.windows.ui.notifications.management import UserNotificationListener, UserNotificationListenerAccessStatus
-            from winrt.windows.ui.notifications import NotificationKinds, KnownNotificationBindings
-            from winrt.windows.foundation.metadata import ApiInformation
+            # Try new import style first
+            import winrt.windows.ui.notifications.management as notifications_management
+            import winrt.windows.ui.notifications as notifications
+            import winrt.windows.foundation.metadata as metadata
+            
+            UserNotificationListener = notifications_management.UserNotificationListener
+            UserNotificationListenerAccessStatus = notifications_management.UserNotificationListenerAccessStatus
+            NotificationKinds = notifications.NotificationKinds
+            KnownNotificationBindings = notifications.KnownNotificationBindings
+            ApiInformation = metadata.ApiInformation
+            
             WINRT_AVAILABLE = True
-        except ImportError:
-            WINRT_AVAILABLE = False
-            print("winrt not available - falling back to window monitoring")
+            print("WinRT loaded successfully!")
+        except Exception as e:
+            print(f"WinRT import error: {e}")
+            # Try alternative import
+            try:
+                from winsdk.windows.ui.notifications.management import UserNotificationListener, UserNotificationListenerAccessStatus
+                from winsdk.windows.ui.notifications import NotificationKinds, KnownNotificationBindings
+                from winsdk.windows.foundation.metadata import ApiInformation
+                WINRT_AVAILABLE = True
+                print("WinSDK loaded successfully!")
+            except Exception as e2:
+                print(f"WinSDK import error: {e2}")
+                print("Falling back to window monitoring")
             
     except ImportError as e:
         print(f"Error: {e}")
