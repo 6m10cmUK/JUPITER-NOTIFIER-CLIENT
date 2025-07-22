@@ -1,63 +1,64 @@
 @echo off
+chcp 65001 >nul
 echo ===================================
-echo JUPITER NOTIFIER CLIENT 自動起動設定
+echo JUPITER NOTIFIER CLIENT Auto Start Setup
 echo ===================================
 echo.
 
-REM 管理者権限の確認
+REM Check admin rights
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo このスクリプトは管理者権限で実行する必要があります。
-    echo 右クリックして「管理者として実行」を選択してください。
+    echo This script requires administrator privileges.
+    echo Please right-click and select "Run as administrator".
     pause
     exit /b 1
 )
 
-REM 現在のディレクトリを取得
+REM Get current directory
 set CURRENT_DIR=%~dp0
 
-REM スタートアップフォルダのパス
+REM Startup folder path
 set STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
 
-REM 起動用バッチファイルの作成
-echo スタートアップ用バッチファイルを作成しています...
+REM Create startup batch file
+echo Creating startup batch file...
 (
 echo @echo off
 echo cd /d "%CURRENT_DIR%"
 echo start /min run.bat
 ) > "%STARTUP_DIR%\JupiterNotifierClient.bat"
 
-REM タスクスケジューラーでの設定（オプション）
+REM Task Scheduler setup (optional)
 echo.
-echo タスクスケジューラーにも登録しますか？
-echo （システム起動時に確実に実行されます）
+echo Register with Task Scheduler?
+echo (Ensures execution at system startup)
 echo.
-choice /C YN /M "登録する場合はY、スキップする場合はN"
+choice /C YN /M "Press Y to register, N to skip"
 if %errorlevel%==1 (
-    echo タスクスケジューラーに登録しています...
+    echo Registering with Task Scheduler...
     schtasks /create /tn "JupiterNotifierClient" /tr "%CURRENT_DIR%run.bat" /sc onlogon /rl highest /f
     if %errorlevel% eq 0 (
-        echo タスクスケジューラーへの登録が完了しました。
+        echo Task Scheduler registration complete.
     ) else (
-        echo タスクスケジューラーへの登録に失敗しました。
+        echo Task Scheduler registration failed.
     )
 )
 
 echo.
 echo ===================================
-echo 自動起動設定が完了しました！
+echo Auto Start Setup Complete!
 echo ===================================
 echo.
-echo 設定内容:
-echo - スタートアップフォルダ: 登録済み
+echo Settings:
+echo - Startup folder: Registered
 if exist "%STARTUP_DIR%\JupiterNotifierClient.bat" (
-    echo   場所: %STARTUP_DIR%\JupiterNotifierClient.bat
+    echo   Location: %STARTUP_DIR%\JupiterNotifierClient.bat
 )
 echo.
-echo 次回のログイン時から自動的に起動します。
+echo The client will start automatically on next login.
 echo.
-echo 自動起動を無効にする場合:
-echo 1. スタートアップフォルダから JupiterNotifierClient.bat を削除
-echo 2. タスクスケジューラーから JupiterNotifierClient タスクを削除
+echo To disable auto start:
+echo 1. Delete JupiterNotifierClient.bat from Startup folder
+echo 2. Delete JupiterNotifierClient task from Task Scheduler
 echo.
 pause
