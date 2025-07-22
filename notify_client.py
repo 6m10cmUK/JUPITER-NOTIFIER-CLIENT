@@ -100,7 +100,10 @@ class FullScreenNotification:
                 main_frame.pack(expand=True, fill='both')
                 
                 # フレームもクリック可能に
-                main_frame.bind('<Button-1>', lambda e: self.close_all_notifications())
+                def on_frame_click(event):
+                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] フレームがクリックされました")
+                    self.close_all_notifications()
+                main_frame.bind('<Button-1>', on_frame_click)
                 
                 # 送信者情報
                 if sender:
@@ -193,11 +196,14 @@ async def connect_to_bot():
     
     async def send_dismiss_notification():
         """消去通知を送信"""
-        if notifier.websocket:
+        if notifier.websocket and notifier.websocket.open:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] WebSocket状態: open={notifier.websocket.open}")
             await notifier.websocket.send(json.dumps({
                 "type": "dismiss_notification",
                 "client_type": "windows_notifier"
             }))
+        else:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] WebSocket未接続のため消去通知を送信できません")
     
     notifier.send_dismiss_notification = send_dismiss_notification
     
@@ -246,9 +252,13 @@ async def connect_to_bot():
                     while True:
                         await asyncio.sleep(0.1)
                         if notifier.should_send_dismiss:
-                            notifier.should_send_dismiss = False
-                            await send_dismiss_notification()
-                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知を送信しました")
+                            try:
+                                await send_dismiss_notification()
+                                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知を送信しました")
+                                notifier.should_send_dismiss = False
+                            except Exception as e:
+                                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知送信エラー: {e}")
+                                notifier.should_send_dismiss = False
                 
                 # 両方のタスクを実行
                 await asyncio.gather(

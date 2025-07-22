@@ -17,6 +17,7 @@ import android.widget.TextView
 import androidx.core.content.getSystemService
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.util.Log
 
 class OverlayService : Service() {
     
@@ -26,6 +27,7 @@ class OverlayService : Service() {
     private var toneGenerator: ToneGenerator? = null
     
     companion object {
+        private const val TAG = "OverlayService"
         private const val DISPLAY_DURATION = 10000L // 10秒
         var instance: OverlayService? = null
     }
@@ -72,6 +74,7 @@ class OverlayService : Service() {
             
             // クリックで閉じる
             setOnClickListener {
+                Log.d(TAG, "Overlay clicked, closing with dismiss notification")
                 removeOverlay(sendDismiss = true)
             }
             
@@ -113,6 +116,7 @@ class OverlayService : Service() {
     }
     
     private fun removeOverlay(sendDismiss: Boolean = false) {
+        Log.d(TAG, "removeOverlay called: sendDismiss=$sendDismiss")
         overlayView?.let {
             windowManager.removeView(it)
             overlayView = null
@@ -122,11 +126,18 @@ class OverlayService : Service() {
         
         // 他のクライアントにも消去を通知
         if (sendDismiss) {
-            WebSocketService.instance?.sendDismissNotification()
+            Log.d(TAG, "Sending dismiss notification via WebSocketService")
+            val wsInstance = WebSocketService.instance
+            if (wsInstance != null) {
+                wsInstance.sendDismissNotification()
+            } else {
+                Log.e(TAG, "WebSocketService.instance is null!")
+            }
         }
     }
     
     fun dismissFromRemote() {
+        Log.d(TAG, "dismissFromRemote called")
         removeOverlay(sendDismiss = false)
     }
     
@@ -170,5 +181,6 @@ class OverlayService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         removeOverlay()
+        instance = null
     }
 }
