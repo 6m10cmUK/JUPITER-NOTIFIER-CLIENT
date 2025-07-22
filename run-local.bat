@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 echo ===================================
-echo JUPITER NOTIFIER CLIENT
+echo JUPITER NOTIFIER CLIENT (LOCAL MODE)
 echo ===================================
 echo.
 
@@ -16,21 +16,12 @@ if not exist venv (
 REM Activate virtual environment
 call venv\Scripts\activate.bat
 
-REM Set default WebSocket URL
-REM Note: Replace with your actual Northflank URL
-set WS_SERVER_URL=wss://jupiter-system-jupiter-system-r6m10cms-team.p1.northflank.app
-
-REM Load environment variables from .env if exists
-if exist .env (
-    echo Loading configuration...
-    for /f "usebackq tokens=*" %%a in (".env") do (
-        echo %%a | findstr /r "^[^#]" >nul && set "%%a"
-    )
-)
+REM Use local configuration
+copy /Y .env.local .env >nul 2>&1
 
 REM Start client
-echo Starting client...
-echo WebSocket Server: %WS_SERVER_URL%
+echo Starting client in LOCAL mode...
+echo WebSocket Server: ws://localhost:8080
 echo.
 echo Press Ctrl+C to exit
 echo.
