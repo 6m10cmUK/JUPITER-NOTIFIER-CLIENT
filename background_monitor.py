@@ -62,6 +62,8 @@ class BackgroundMonitor:
             'firefox.exe': 'Firefox',
             'thunderbird.exe': 'Thunderbird'
         }
+        self.slack_only_mode = True  # Slackの通知のみを処理
+        self.mention_only_mode = True  # メンションのみを処理
         
     async def connect_websocket(self):
         """Connect to WebSocket server"""
@@ -106,6 +108,55 @@ class BackgroundMonitor:
         # Check if Slack notification
         is_slack = "slack" in app_name.lower() or "slack" in title.lower()
         
+        # Filter: Slack only mode
+        if self.slack_only_mode and not is_slack:
+            return
+            
+        # Filter: Mention only mode (for Slack)
+        if is_slack and self.mention_only_mode:
+            # Slackのメンション通知パターン
+            mention_patterns = [
+                # 英語パターン
+                'mentioned you',
+                'sent a direct message',
+                'replied to your thread',
+                'reacted to your message',
+                '@channel',
+                '@here',
+                '@everyone',
+                'new message in',
+                'dm from',
+                
+                # 日本語パターン
+                'メンション',
+                'ダイレクトメッセージ',
+                'スレッドに返信',
+                'リアクション',
+                '返信しました',
+                'からメッセージ',
+                
+                # 一般的なパターン
+                ':',  # "username: message" format
+                '→',  # Arrow indicating direction
+            ]
+            
+            # タイトルとメッセージを結合してチェック
+            full_text = f"{title} {message}".lower()
+            
+            # DMの場合（タイトルに個人名が含まれる）
+            is_dm = not any(indicator in full_text for indicator in ['#', 'channel', 'チャンネル'])
+            
+            # メンションチェック
+            has_mention = any(pattern in full_text for pattern in mention_patterns)
+            
+            # @記号チェック（より厳密に）
+            has_at_mention = '@' in message and not '@' in ['@gmail.com', '@outlook.com']  # メールアドレスを除外
+            
+            # DMまたはメンション通知の場合のみ処理
+            if not (is_dm or has_mention or has_at_mention):
+                print(f"\n[SKIPPED] Non-mention/DM Slack notification: {title}")
+                return
+        
         notification_data = {
             "type": "notification",
             "title": title,
@@ -120,12 +171,37 @@ class BackgroundMonitor:
         try:
             await self.ws.send(json.dumps(notification_data))
             logger.info(f"Sent: [{app_name}] {title} - {message}")
-            print(f"\n[NOTIFICATION CAPTURED] {datetime.now().strftime('%H:%M:%S')}")
-            print(f"  App: {app_name}")
-            print(f"  Title: {title}")
-            print(f"  Message: {message}")
-            print(f"  {'[SLACK]' if is_slack else ''}")
-            print("-" * 50)
+            
+            # Special formatting for Slack mentions
+            if is_slack:
+                # 通知タイプを判定
+                notification_type = "MENTION"
+                if 'direct message' in title.lower() or not '#' in title:
+                    notification_type = "DM"
+                elif 'thread' in title.lower() or 'スレッド' in title:
+                    notification_type = "THREAD"
+                elif 'reacted' in title.lower() or 'リアクション' in title:
+                    notification_type = "REACTION"
+                
+                print(f"\n{'='*60}")
+                print(f"[SLACK {notification_type}] {datetime.now().strftime('%H:%M:%S')}")
+                print(f"{'='*60}")
+                print(f"  From: {title}")
+                print(f"  Message: {message}")
+                print(f"{'='*60}")
+                
+                # Also log to file
+                with open('slack_mentions.log', 'a', encoding='utf-8') as f:
+                    f.write(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {notification_type}\n")
+                    f.write(f"From: {title}\n")
+                    f.write(f"Message: {message}\n")
+                    f.write("-" * 50 + "\n")
+            else:
+                print(f"\n[NOTIFICATION CAPTURED] {datetime.now().strftime('%H:%M:%S')}")
+                print(f"  App: {app_name}")
+                print(f"  Title: {title}")
+                print(f"  Message: {message}")
+                print("-" * 50)
         except Exception as e:
             logger.error(f"Send error: {e}")
             self.ws = None
@@ -381,13 +457,16 @@ def main():
     save_pid()
     
     print("=" * 60)
-    print("     BACKGROUND NOTIFICATION MONITOR")
+    print("     SLACK MENTION MONITOR")
     print("=" * 60)
+    print("\nMode: Slack Mentions Only")
     print("\nFeatures:")
-    print("  ✓ Monitors all Windows notifications")
-    print("  ✓ Captures Slack, Teams, Discord, etc.")
-    print("  ✓ Forwards to WebSocket server")
+    print("  ✓ Monitors Slack notifications")
+    print("  ✓ Filters for @mentions only")
+    print("  ✓ Logs to slack_mentions.log")
     print("  ✓ Real-time console output")
+    print("\nMention Keywords:")
+    print("  @, mentioned you, メンション, から, replied, 返信")
     print("\nStatus:")
     print("  → Connecting to WebSocket server...")
     print("\nPress Ctrl+C to stop")
