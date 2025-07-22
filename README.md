@@ -33,7 +33,22 @@ install.bat
 
 ### 2. 設定
 
-`.env`ファイルを編集してWebSocketサーバーのURLを設定：
+`.env.windows`を`.env`にコピーして使用：
+
+```bash
+copy .env.windows .env
+```
+
+**Northflankを使用している場合（推奨）**
+
+`.env`ファイルは以下の設定でそのまま使用できます：
+
+```env
+# NorthflankでホストされているBotサーバー
+WS_SERVER_URL=wss://jupiter-system--jupiter-system--r6m10cms-team.p1.northflank.app
+```
+
+**その他の環境の場合**
 
 ```env
 # ローカルの場合
@@ -41,9 +56,6 @@ WS_SERVER_URL=ws://localhost:8080
 
 # LAN内の別PCの場合
 WS_SERVER_URL=ws://192.168.1.100:8080
-
-# インターネット経由の場合（SSL使用）
-WS_SERVER_URL=wss://your-server.com:8080
 ```
 
 ### 3. 起動方法
