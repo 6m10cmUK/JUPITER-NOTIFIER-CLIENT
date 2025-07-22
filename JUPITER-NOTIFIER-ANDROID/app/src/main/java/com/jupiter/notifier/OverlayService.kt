@@ -17,6 +17,8 @@ import android.widget.TextView
 import androidx.core.content.getSystemService
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.media.MediaPlayer
+import android.media.AudioAttributes
 import android.util.Log
 
 class OverlayService : Service() {
@@ -25,6 +27,7 @@ class OverlayService : Service() {
     private var overlayView: View? = null
     private val handler = Handler(Looper.getMainLooper())
     private var toneGenerator: ToneGenerator? = null
+    private var mediaPlayer: MediaPlayer? = null
     private var originalAlarmVolume: Int = 0
     
     companion object {
@@ -148,42 +151,72 @@ class OverlayService : Service() {
         try {
             // アラーム音量で再生
             val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            
-            // 一時的にアラーム音量を最大に設定
-            val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+            val alarmVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
             val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
+            val volumePercent = (alarmVolume.toFloat() / maxVolume.toFloat() * 100).toInt()
             
-            // ToneGeneratorを最大音量（100）で作成
-            toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+            // 音量が0の場合は音を鳴らさない
+            if (volumePercent == 0) {
+                Log.d(TAG, "アラーム音量が0のため、音を鳴らしません")
+                return
+            }
             
-            // より大きな音のトーンタイプを使用
+            // MediaPlayerを使用してシステムのアラーム音を再生
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                
+                // システムのデフォルトアラーム音を使用
+                val alarmUri = android.media.RingtoneManager.getDefaultUri(
+                    android.media.RingtoneManager.TYPE_ALARM
+                ) ?: android.media.RingtoneManager.getDefaultUri(
+                    android.media.RingtoneManager.TYPE_NOTIFICATION
+                )
+                
+                setDataSource(applicationContext, alarmUri)
+                isLooping = true  // ループ再生
+                
+                // 音量をブースト（1.5倍のゲイン）
+                val gainFactor = 1.5f
+                setVolume(gainFactor, gainFactor)
+                
+                prepare()
+                start()
+            }
+            
+            // バックアップとしてToneGeneratorも使用
+            // 音量に1.5倍のゲインをかける（最大100）
+            val adjustedVolume = minOf(100, (volumePercent * 1.5).toInt())
+            toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, adjustedVolume)
+            
             handler.post(object : Runnable {
                 override fun run() {
-                    // TONE_CDMA_EMERGENCY_RINGBACKは緊急音でより大きい
                     toneGenerator?.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 1000)
-                    handler.postDelayed(this, 1050) // 1.05秒ごとに繰り返し（音の隙間を減らす）
+                    handler.postDelayed(this, 1050)
                 }
             })
-            
-            // 元の音量を保存（後で復元するため）
-            originalAlarmVolume = currentVolume
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
     
     private fun stopAlarmSound() {
+        // MediaPlayerを停止
+        mediaPlayer?.let {
+            if (it.isPlaying) {
+                it.stop()
+            }
+            it.release()
+        }
+        mediaPlayer = null
+        
+        // ToneGeneratorを停止
         toneGenerator?.release()
         toneGenerator = null
-        
-        // 元の音量に戻す
-        try {
-            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, originalAlarmVolume, 0)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
     }
     
     private fun vibrate() {
