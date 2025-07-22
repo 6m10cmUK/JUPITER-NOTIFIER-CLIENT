@@ -29,9 +29,21 @@ if sys.platform == 'win32':
         from ctypes import wintypes
         import pythoncom
         import win32com.client
+        
+        # Try to import winrt for notification listener
+        try:
+            from winrt.windows.ui.notifications.management import UserNotificationListener, UserNotificationListenerAccessStatus
+            from winrt.windows.ui.notifications import NotificationKinds, KnownNotificationBindings
+            from winrt.windows.foundation.metadata import ApiInformation
+            WINRT_AVAILABLE = True
+        except ImportError:
+            WINRT_AVAILABLE = False
+            print("winrt not available - falling back to window monitoring")
+            
     except ImportError as e:
         print(f"Error: {e}")
         print("\nPlease install: pip install pywin32 psutil")
+        print("For better notification support: pip install winrt-Windows.UI.Notifications.Management")
         sys.exit(1)
 
 # Logging setup
@@ -64,6 +76,8 @@ class BackgroundMonitor:
         }
         self.slack_only_mode = False  # すべての通知を処理
         self.mention_only_mode = False  # すべての通知を表示
+        self.notification_listener = None
+        self.use_winrt = WINRT_AVAILABLE
         
     async def connect_websocket(self):
         """Connect to WebSocket server"""
@@ -382,6 +396,92 @@ class BackgroundMonitor:
                 logger.error(f"Queue processing error: {e}")
                 await asyncio.sleep(5)
     
+    async def setup_winrt_listener(self):
+        """Setup Windows notification listener using WinRT"""
+        if not self.use_winrt:
+            return False
+            
+        try:
+            # Check if UserNotificationListener is supported
+            if not ApiInformation.is_type_present("Windows.UI.Notifications.Management.UserNotificationListener"):
+                print("UserNotificationListener is not supported on this device.")
+                return False
+            
+            # Get the listener instance
+            self.notification_listener = UserNotificationListener.get_current()
+            
+            # Request access permission
+            access_status = await self.notification_listener.request_access_async()
+            
+            if access_status != UserNotificationListenerAccessStatus.ALLOWED:
+                print("Access to UserNotificationListener is not allowed.")
+                print("Please enable in: Windows Settings > Privacy > Notifications")
+                return False
+                
+            print("[WINRT] Access granted! Using Windows notification listener")
+            
+            # Handler for notification changes
+            def notification_changed_handler(sender, args):
+                try:
+                    notification = sender.get_notification(args.user_notification_id)
+                    
+                    app_name = "Unknown"
+                    title = ""
+                    message = ""
+                    
+                    # Get app info if available
+                    if hasattr(notification, "app_info") and notification.app_info:
+                        app_name = notification.app_info.display_info.display_name
+                    
+                    # Extract notification text
+                    try:
+                        binding = notification.notification.visual.get_binding(
+                            KnownNotificationBindings.get_toast_generic()
+                        )
+                        if binding:
+                            text_elements = binding.get_text_elements()
+                            if text_elements:
+                                texts = []
+                                it = iter(text_elements)
+                                if it.current:
+                                    texts.append(it.current.text)
+                                while True:
+                                    next(it, None)
+                                    if it.has_current:
+                                        texts.append(it.current.text)
+                                    else:
+                                        break
+                                
+                                if texts:
+                                    title = texts[0]
+                                    message = " ".join(texts[1:]) if len(texts) > 1 else ""
+                    except Exception as e:
+                        logger.debug(f"Error extracting text: {e}")
+                    
+                    # Queue the notification
+                    self.notification_queue.put({
+                        'app': app_name,
+                        'title': title,
+                        'message': message
+                    })
+                    
+                except Exception as e:
+                    logger.error(f"Error processing notification: {e}")
+            
+            # Add the event handler
+            self.notification_listener.add_notification_changed(notification_changed_handler)
+            
+            # Get all current notifications
+            notifications = await self.notification_listener.get_notifications_async(NotificationKinds.TOAST)
+            print(f"[WINRT] Found {len(notifications)} existing notifications in Action Center")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to setup WinRT listener: {e}")
+            print(f"[WINRT] Failed to setup: {e}")
+            return False
+    
     async def start(self):
         """Start monitoring"""
         self.running = True
@@ -398,10 +498,15 @@ class BackgroundMonitor:
             "Background monitoring is active"
         )
         
-        # Start background monitor in thread
-        monitor_thread = threading.Thread(target=self.background_monitor_loop)
-        monitor_thread.daemon = True
-        monitor_thread.start()
+        # Try to setup WinRT listener
+        winrt_success = await self.setup_winrt_listener()
+        
+        if not winrt_success:
+            # Fallback to window monitoring
+            print("[FALLBACK] Using window monitoring method")
+            monitor_thread = threading.Thread(target=self.background_monitor_loop)
+            monitor_thread.daemon = True
+            monitor_thread.start()
         
         print("\n[MONITOR ACTIVE] Watching for all notifications...")
         print("=" * 60)
