@@ -16,9 +16,13 @@ import threading
 import sys
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# .envファイルを読み込み
+load_dotenv()
 
 # 設定
-WS_SERVER_URL = os.getenv('WS_SERVER_URL', 'ws://localhost:8080')
+WS_SERVER_URL = os.getenv('WS_SERVER_URL', 'wss://jupiter-system--jupiter-system--r6m10cms-team.p1.northflank.app')
 DEFAULT_DURATION = 10000  # 10秒固定
 BACKGROUND_COLOR = '#610610'  # 暗い赤色
 
