@@ -39,6 +39,7 @@ class FullScreenNotification:
         self.websocket = None
         self.should_send_dismiss = False
         self.auto_close_id = None
+        self.notification_thread = None
         
     def show_notification(self, title, message, duration=DEFAULT_DURATION, sender=None):
         """
@@ -50,9 +51,15 @@ class FullScreenNotification:
             duration: 表示時間（ミリ秒）
             sender: 送信者名
         """
-        if self.is_showing:
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 既に通知を表示中のためスキップします")
-            return
+        # 前のスレッドが生きている場合は強制的に終了
+        if self.notification_thread and self.notification_thread.is_alive():
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 前の通知スレッドがまだ実行中です。強制的に閉じます。")
+            self.close_all_notifications(send_dismiss=False)
+            # スレッドが終了するまで少し待つ
+            self.notification_thread.join(timeout=0.5)
+        
+        # フラグをリセット
+        self.is_showing = False
             
         def create_windows():
             self.is_showing = True
@@ -165,9 +172,13 @@ class FullScreenNotification:
             if self.windows:
                 self.windows[0].mainloop()
             
-        thread = threading.Thread(target=create_windows)
-        thread.daemon = True
-        thread.start()
+            # スレッド終了時にフラグをリセット
+            self.is_showing = False
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 通知ウィンドウのメインループが終了しました")
+            
+        self.notification_thread = threading.Thread(target=create_windows)
+        self.notification_thread.daemon = True
+        self.notification_thread.start()
     
     def close_all_notifications(self, send_dismiss=True):
         """全ての通知ウィンドウを閉じる"""
