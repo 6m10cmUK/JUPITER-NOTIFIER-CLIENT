@@ -70,8 +70,10 @@ try:
     else:
         print("✗ winrt.windows does NOT exist")
         
-    # List all winrt attributes that might be relevant
-    print("\nAll winrt attributes:")
-    for attr in dir(winrt):
-        if not attr.startswith('_'):
-            print(f"  - {attr}")
+        # List all winrt attributes that might be relevant
+        print("\nAll winrt attributes:")
+        for attr in dir(winrt):
+            if not attr.startswith('_'):
+                print(f"  - {attr}")
+except Exception as e:
+    print(f"Error accessing winrt attributes: {e}")
