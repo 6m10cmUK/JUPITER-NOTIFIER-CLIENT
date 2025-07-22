@@ -72,16 +72,26 @@ class FullScreenNotification:
             for i, monitor in enumerate(monitors):
                 root = tk.Tk() if i == 0 else tk.Toplevel()
                 
+                # ウィンドウタイトル（フルスクリーン前に設定）
+                root.title('JUPITER NOTIFICATION')
+                
+                # モニター位置に配置（フルスクリーン前に設定）
+                if monitor:
+                    root.geometry(f"{monitor.width}x{monitor.height}+{monitor.x}+{monitor.y}")
+                
                 # ウィンドウ設定
-                root.attributes('-fullscreen', True)
+                root.overrideredirect(True)  # ウィンドウ枠を削除
                 root.attributes('-topmost', True)
                 root.attributes('-alpha', 0.65)  # 65%の透明度
                 root.configure(bg=BACKGROUND_COLOR)
-                root.title('JUPITER NOTIFICATION')
                 
-                # モニター位置に配置
+                # フルスクリーン設定
                 if monitor:
+                    # 各モニターの位置とサイズに合わせて配置
                     root.geometry(f"{monitor.width}x{monitor.height}+{monitor.x}+{monitor.y}")
+                else:
+                    # モニター情報が取得できない場合は通常のフルスクリーン
+                    root.state('zoomed')  # Windows用の最大化
                 
                 # メインフレーム
                 main_frame = tk.Frame(root, bg=BACKGROUND_COLOR)
