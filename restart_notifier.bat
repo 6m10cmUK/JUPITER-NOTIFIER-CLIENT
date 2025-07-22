@@ -1,27 +1,27 @@
 @echo off
-echo [JUPITER NOTIFIER] 再起動中...
+echo [JUPITER NOTIFIER] Restarting...
 
-REM 既存のPythonプロセスを終了
+REM Kill existing Python processes
 taskkill /F /IM python.exe 2>nul
 if %errorlevel%==0 (
-    echo 既存のプロセスを終了しました
+    echo Terminated existing processes
 ) else (
-    echo 起動中のプロセスはありません
+    echo No running processes found
 )
 
-REM 少し待機
+REM Wait a moment
 timeout /t 2 /nobreak >nul
 
-REM スクリプトのディレクトリに移動
+REM Change to script directory
 cd /d "%~dp0"
 
-REM 通知クライアントを起動
-echo [JUPITER NOTIFIER] 起動中...
+REM Start notification client
+echo [JUPITER NOTIFIER] Starting...
 python notify_client.py
 
-REM エラーが発生した場合は一時停止
+REM Pause if error occurred
 if %errorlevel% neq 0 (
     echo.
-    echo エラーが発生しました
+    echo An error occurred
     pause
 )
