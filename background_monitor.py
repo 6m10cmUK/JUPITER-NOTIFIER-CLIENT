@@ -39,8 +39,8 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('notification_monitor.log')
+        logging.StreamHandler(sys.stdout),  # Console output
+        logging.FileHandler('notification_monitor.log', encoding='utf-8')  # File output
     ]
 )
 logger = logging.getLogger(__name__)
@@ -65,13 +65,24 @@ class BackgroundMonitor:
         
     async def connect_websocket(self):
         """Connect to WebSocket server"""
-        try:
-            self.ws = await websockets.connect(self.ws_url)
-            logger.info(f"Connected to WebSocket: {self.ws_url}")
-            return True
-        except Exception as e:
-            logger.error(f"WebSocket connection error: {e}")
-            return False
+        max_retries = 5
+        retry_delay = 5
+        
+        for attempt in range(max_retries):
+            try:
+                self.ws = await websockets.connect(self.ws_url)
+                logger.info(f"Connected to WebSocket: {self.ws_url}")
+                print(f"[Connected] WebSocket server connected successfully")
+                return True
+            except Exception as e:
+                logger.error(f"WebSocket connection error (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    print(f"[Retry] Connection failed, retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                else:
+                    print(f"[Error] Failed to connect to WebSocket server at {self.ws_url}")
+                    print(f"[Error] Make sure Discord bot is running on port 8080")
+        return False
     
     async def send_notification(self, app_name, title, message):
         """Send notification to WebSocket server"""
@@ -109,6 +120,12 @@ class BackgroundMonitor:
         try:
             await self.ws.send(json.dumps(notification_data))
             logger.info(f"Sent: [{app_name}] {title} - {message}")
+            print(f"\n[NOTIFICATION CAPTURED] {datetime.now().strftime('%H:%M:%S')}")
+            print(f"  App: {app_name}")
+            print(f"  Title: {title}")
+            print(f"  Message: {message}")
+            print(f"  {'[SLACK]' if is_slack else ''}")
+            print("-" * 50)
         except Exception as e:
             logger.error(f"Send error: {e}")
             self.ws = None
@@ -219,7 +236,7 @@ class BackgroundMonitor:
                     if any(app in proc_name for app in ['slack', 'teams', 'discord', 'skype']):
                         # Check for CPU/memory spikes (might indicate new notification)
                         if proc.info['cpu_percent'] > 5 or proc.info['memory_percent'] > 0.5:
-                            logger.debug(f"Activity detected in {proc_name}")
+                            print(f"\n[ACTIVITY] {proc_name} - CPU: {proc.info['cpu_percent']:.1f}% Memory: {proc.info['memory_percent']:.1f}%")
                             
                             # Try to find associated windows
                             def window_callback(hwnd, pid):
@@ -252,7 +269,10 @@ class BackgroundMonitor:
         logger.info("Starting background monitor loop...")
         
         last_check = time.time()
+        last_status = time.time()
         check_interval = 1.0  # Check every second
+        status_interval = 30.0  # Status update every 30 seconds
+        check_count = 0
         
         while self.running:
             try:
@@ -273,6 +293,12 @@ class BackgroundMonitor:
                         self.notification_queue.put(notif)
                     
                     last_check = current_time
+                    check_count += 1
+                
+                # Status update
+                if current_time - last_status >= status_interval:
+                    print(f"\n[STATUS] {datetime.now().strftime('%H:%M:%S')} - Monitoring active (Checks: {check_count})")
+                    last_status = current_time
                 
                 # Small sleep to prevent CPU overuse
                 time.sleep(0.1)
@@ -326,9 +352,9 @@ class BackgroundMonitor:
         monitor_thread.daemon = True
         monitor_thread.start()
         
+        print("\n[MONITOR ACTIVE] Watching for notifications...")
+        print("=" * 60)
         logger.info("Background monitor is running...")
-        logger.info("The program will continue running in the background")
-        logger.info("Check notification_monitor.log for activity")
         
         try:
             # Process queue asynchronously
@@ -343,15 +369,18 @@ class BackgroundMonitor:
 
 def main():
     """Main entry point"""
-    print("=== Background Notification Monitor ===")
-    print("Runs continuously in background")
+    print("=" * 60)
+    print("     BACKGROUND NOTIFICATION MONITOR")
+    print("=" * 60)
     print("\nFeatures:")
-    print("- Monitors all notification windows")
-    print("- Tracks process activity")
-    print("- Runs silently in background")
-    print("- Logs to notification_monitor.log")
-    print("\nThe program will minimize to background after starting")
-    print("Press Ctrl+C to stop\n")
+    print("  ✓ Monitors all Windows notifications")
+    print("  ✓ Captures Slack, Teams, Discord, etc.")
+    print("  ✓ Forwards to WebSocket server")
+    print("  ✓ Real-time console output")
+    print("\nStatus:")
+    print("  → Connecting to WebSocket server...")
+    print("\nPress Ctrl+C to stop")
+    print("=" * 60)
     
     # Check platform
     if sys.platform != 'win32':
@@ -361,28 +390,35 @@ def main():
     # Start monitor
     monitor = BackgroundMonitor()
     
-    # Hide console window after 5 seconds
-    def hide_console():
-        time.sleep(5)
-        # Get console window handle
-        kernel32 = ctypes.WinDLL('kernel32')
-        user32 = ctypes.WinDLL('user32')
-        
-        hWnd = kernel32.GetConsoleWindow()
-        if hWnd:
-            # Minimize to tray
-            user32.ShowWindow(hWnd, 6)  # SW_MINIMIZE
-            print("\nMinimized to background. Check notification_monitor.log for activity.")
+    # Optional: Hide console window after 5 seconds
+    # Comment out if you want to keep console visible
+    # def hide_console():
+    #     time.sleep(5)
+    #     kernel32 = ctypes.WinDLL('kernel32')
+    #     user32 = ctypes.WinDLL('user32')
+    #     
+    #     hWnd = kernel32.GetConsoleWindow()
+    #     if hWnd:
+    #         user32.ShowWindow(hWnd, 6)  # SW_MINIMIZE
+    #         print("\nMinimized to background. Check notification_monitor.log for activity.")
+    # 
+    # hide_thread = threading.Thread(target=hide_console)
+    # hide_thread.daemon = True
+    # hide_thread.start()
     
-    # Start hide thread
-    hide_thread = threading.Thread(target=hide_console)
-    hide_thread.daemon = True
-    hide_thread.start()
+    print("\n[Running] Monitor is active. Press Ctrl+C to stop.")
+    print("[Logs] Check notification_monitor.log for captured notifications.")
     
     try:
         asyncio.run(monitor.start())
     except KeyboardInterrupt:
         print("\nStopping...")
+    except Exception as e:
+        print(f"\nError: {e}")
+        import traceback
+        traceback.print_exc()
+        print("\nPress Enter to exit...")
+        input()
 
 if __name__ == "__main__":
     main()
