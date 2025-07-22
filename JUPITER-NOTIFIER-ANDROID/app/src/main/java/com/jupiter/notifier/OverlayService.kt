@@ -28,7 +28,7 @@ class OverlayService : Service() {
     
     companion object {
         private const val TAG = "OverlayService"
-        private const val DISPLAY_DURATION = 10000L // 10秒
+        private const val DISPLAY_DURATION = 30000L // 30秒
         var instance: OverlayService? = null
     }
     
@@ -109,7 +109,7 @@ class OverlayService : Service() {
         vibrate()
         startAlarmSound()
         
-        // 10秒後に自動的に閉じる
+        // 30秒後に自動的に閉じる
         handler.postDelayed({
             removeOverlay()
         }, DISPLAY_DURATION)
@@ -151,7 +151,7 @@ class OverlayService : Service() {
             
             toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, volumePercent)
             
-            // 10秒間連続で音を鳴らす
+            // 30秒間連続で音を鳴らす
             handler.post(object : Runnable {
                 override fun run() {
                     toneGenerator?.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 1000)
