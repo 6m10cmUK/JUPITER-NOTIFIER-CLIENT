@@ -20,13 +20,13 @@ set CURRENT_DIR=%~dp0
 REM Startup folder path
 set STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
 
-REM Create startup batch file
-echo Creating startup batch file...
+REM Create startup VBS file for background execution
+echo Creating startup script...
 (
-echo @echo off
-echo cd /d "%CURRENT_DIR%"
-echo start /min run.bat
-) > "%STARTUP_DIR%\JupiterNotifierClient.bat"
+echo Set WshShell = CreateObject("WScript.Shell"^)
+echo WshShell.CurrentDirectory = "%CURRENT_DIR%"
+echo WshShell.Run "run.bat", 0, False
+) > "%STARTUP_DIR%\JupiterNotifierClient.vbs"
 
 REM Task Scheduler setup (optional)
 echo.
@@ -46,14 +46,14 @@ echo ===================================
 echo.
 echo Settings:
 echo - Startup folder: Registered
-if exist "%STARTUP_DIR%\JupiterNotifierClient.bat" (
-    echo   Location: %STARTUP_DIR%\JupiterNotifierClient.bat
+if exist "%STARTUP_DIR%\JupiterNotifierClient.vbs" (
+    echo   Location: %STARTUP_DIR%\JupiterNotifierClient.vbs
 )
 echo.
 echo The client will start automatically on next login.
 echo.
 echo To disable auto start:
-echo 1. Delete JupiterNotifierClient.bat from Startup folder
+echo 1. Delete JupiterNotifierClient.vbs from Startup folder
 echo 2. Delete JupiterNotifierClient task from Task Scheduler
 echo.
 pause

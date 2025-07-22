@@ -63,11 +63,16 @@ WS_SERVER_URL=ws://192.168.1.100:8080
 
 ### 3. 起動方法
 
+**通常起動（コンソール表示あり）:**
 ```bash
 run.bat
 ```
 
-または`start.bat`をダブルクリック
+**バックグラウンド起動（コンソール表示なし）:**
+```bash
+run-background.vbs
+```
+またはVBSファイルをダブルクリック
 
 #### 自動起動設定
 管理者権限で実行：
@@ -76,7 +81,7 @@ setup-autostart.bat
 ```
 
 これにより以下が設定されます：
-- Windowsログイン時の自動起動
+- Windowsログイン時の自動起動（バックグラウンド実行）
 - タスクスケジューラーへの登録（オプション）
 
 ## 使い方
@@ -121,7 +126,7 @@ setup-autostart.bat
 
 3. **手動で確認**
    - `Win + R` → `shell:startup`でスタートアップフォルダを開く
-   - `JupiterNotifierClient.bat`が存在するか確認
+   - `JupiterNotifierClient.vbs`が存在するか確認
 
 ## ファイル構成
 
@@ -132,7 +137,8 @@ JUPITER-NOTIFIER-CLIENT/
 ├── .env.example         # 設定ファイルのテンプレート
 ├── .env                 # 実際の設定ファイル（gitignore）
 ├── install.bat          # インストーラー
-├── run.bat              # 起動スクリプト
+├── run.bat              # 起動スクリプト（コンソール表示）
+├── run-background.vbs   # バックグラウンド起動スクリプト
 ├── setup-autostart.bat  # 自動起動設定
 └── README.md            # このファイル
 ```
