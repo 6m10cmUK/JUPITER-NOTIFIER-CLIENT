@@ -37,6 +37,7 @@ class FullScreenNotification:
         self.is_showing = False
         self.close_event = threading.Event()
         self.websocket = None
+        self.should_send_dismiss = False
         
     def show_notification(self, title, message, duration=DEFAULT_DURATION, sender=None):
         """
@@ -181,8 +182,8 @@ class FullScreenNotification:
         self.close_event.set()
         
         # 他のクライアントにも消去を通知
-        if send_dismiss and hasattr(self, 'websocket'):
-            asyncio.create_task(self.send_dismiss_notification())
+        if send_dismiss and hasattr(self, 'should_send_dismiss'):
+            self.should_send_dismiss = True
 
 
 async def connect_to_bot():
@@ -215,29 +216,44 @@ async def connect_to_bot():
                     "version": "1.0.0"
                 }))
                 
-                # メッセージを受信
-                async for message in websocket:
-                    try:
-                        data = json.loads(message)
-                        
-                        if data.get('type') == 'registered':
-                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] サーバーに登録されました: {data.get('clientId')}")
-                        
-                        elif data.get('type') == 'notification':
-                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 通知受信: {data.get('title')}")
-                            notifier.show_notification(
-                                data.get('title', 'Discord通知'),
-                                data.get('message', ''),
-                                data.get('duration', DEFAULT_DURATION),
-                                data.get('sender')
-                            )
-                        
-                        elif data.get('type') == 'dismiss_notification':
-                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知受信: {data.get('dismissed_by')}")
-                            notifier.close_all_notifications(send_dismiss=False)
+                # メッセージ受信とdismiss送信を並行処理
+                async def receive_messages():
+                    async for message in websocket:
+                        try:
+                            data = json.loads(message)
                             
-                    except json.JSONDecodeError as e:
-                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] JSONパースエラー: {e}")
+                            if data.get('type') == 'registered':
+                                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] サーバーに登録されました: {data.get('clientId')}")
+                            
+                            elif data.get('type') == 'notification':
+                                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 通知受信: {data.get('title')}")
+                                notifier.show_notification(
+                                    data.get('title', 'Discord通知'),
+                                    data.get('message', ''),
+                                    data.get('duration', DEFAULT_DURATION),
+                                    data.get('sender')
+                                )
+                            
+                            elif data.get('type') == 'dismiss_notification':
+                                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知受信: {data.get('dismissed_by')}")
+                                notifier.close_all_notifications(send_dismiss=False)
+                                
+                        except json.JSONDecodeError as e:
+                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] JSONパースエラー: {e}")
+                
+                async def check_dismiss():
+                    while True:
+                        await asyncio.sleep(0.1)
+                        if notifier.should_send_dismiss:
+                            notifier.should_send_dismiss = False
+                            await send_dismiss_notification()
+                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知を送信しました")
+                
+                # 両方のタスクを実行
+                await asyncio.gather(
+                    receive_messages(),
+                    check_dismiss()
+                )
                         
         except websockets.ConnectionClosed:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] サーバーとの接続が切断されました")
