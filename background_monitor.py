@@ -32,32 +32,23 @@ if sys.platform == 'win32':
         
         # Try to import winrt for notification listener
         WINRT_AVAILABLE = False
+        UserNotificationListener = None
+        UserNotificationListenerAccessStatus = None
+        NotificationKinds = None
+        KnownNotificationBindings = None
+        ApiInformation = None
+        
         try:
-            # Try new import style first
-            import winrt.windows.ui.notifications.management as notifications_management
-            import winrt.windows.ui.notifications as notifications
-            import winrt.windows.foundation.metadata as metadata
-            
-            UserNotificationListener = notifications_management.UserNotificationListener
-            UserNotificationListenerAccessStatus = notifications_management.UserNotificationListenerAccessStatus
-            NotificationKinds = notifications.NotificationKinds
-            KnownNotificationBindings = notifications.KnownNotificationBindings
-            ApiInformation = metadata.ApiInformation
+            import winrt
+            import winrt.windows.ui.notifications.management
+            import winrt.windows.ui.notifications
+            import winrt.windows.foundation.metadata
             
             WINRT_AVAILABLE = True
             print("WinRT loaded successfully!")
         except Exception as e:
             print(f"WinRT import error: {e}")
-            # Try alternative import
-            try:
-                from winsdk.windows.ui.notifications.management import UserNotificationListener, UserNotificationListenerAccessStatus
-                from winsdk.windows.ui.notifications import NotificationKinds, KnownNotificationBindings
-                from winsdk.windows.foundation.metadata import ApiInformation
-                WINRT_AVAILABLE = True
-                print("WinSDK loaded successfully!")
-            except Exception as e2:
-                print(f"WinSDK import error: {e2}")
-                print("Falling back to window monitoring")
+            print("Falling back to window monitoring")
             
     except ImportError as e:
         print(f"Error: {e}")
@@ -421,6 +412,11 @@ class BackgroundMonitor:
             return False
             
         try:
+            # Import here to avoid global scope issues
+            from winrt.windows.ui.notifications.management import UserNotificationListener, UserNotificationListenerAccessStatus
+            from winrt.windows.ui.notifications import NotificationKinds, KnownNotificationBindings
+            from winrt.windows.foundation.metadata import ApiInformation
+            
             # Check if UserNotificationListener is supported
             if not ApiInformation.is_type_present("Windows.UI.Notifications.Management.UserNotificationListener"):
                 print("UserNotificationListener is not supported on this device.")
