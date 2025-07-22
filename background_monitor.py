@@ -32,23 +32,23 @@ if sys.platform == 'win32':
         
         # Try to import winrt for notification listener
         WINRT_AVAILABLE = False
-        UserNotificationListener = None
-        UserNotificationListenerAccessStatus = None
-        NotificationKinds = None
-        KnownNotificationBindings = None
-        ApiInformation = None
         
         try:
-            import winrt
-            import winrt.windows.ui.notifications.management
-            import winrt.windows.ui.notifications
-            import winrt.windows.foundation.metadata
+            # Check if the specific notification management module exists
+            import os
+            import importlib.util
             
-            WINRT_AVAILABLE = True
-            print("WinRT loaded successfully!")
+            # Try to import the notification management module directly
+            spec = importlib.util.find_spec("_winrt_windows_ui_notifications_management")
+            if spec is not None:
+                print("Found _winrt_windows_ui_notifications_management module")
+                WINRT_AVAILABLE = True
+            else:
+                print("_winrt_windows_ui_notifications_management module not found")
+                WINRT_AVAILABLE = False
         except Exception as e:
-            print(f"WinRT import error: {e}")
-            print("Falling back to window monitoring")
+            print(f"WinRT check error: {e}")
+            WINRT_AVAILABLE = False
             
     except ImportError as e:
         print(f"Error: {e}")
@@ -412,15 +412,27 @@ class BackgroundMonitor:
             return False
             
         try:
-            # Import here to avoid global scope issues
-            from winrt.windows.ui.notifications.management import UserNotificationListener, UserNotificationListenerAccessStatus
-            from winrt.windows.ui.notifications import NotificationKinds, KnownNotificationBindings
-            from winrt.windows.foundation.metadata import ApiInformation
+            # Try direct import of the compiled module
+            import _winrt_windows_ui_notifications_management as notifications_management
             
-            # Check if UserNotificationListener is supported
-            if not ApiInformation.is_type_present("Windows.UI.Notifications.Management.UserNotificationListener"):
-                print("UserNotificationListener is not supported on this device.")
-                return False
+            # Get the necessary classes
+            UserNotificationListener = notifications_management.UserNotificationListener
+            UserNotificationListenerAccessStatus = notifications_management.UserNotificationListenerAccessStatus
+            
+            # For other modules, try importing them
+            try:
+                from winrt.windows.ui.notifications import NotificationKinds, KnownNotificationBindings
+            except:
+                # Define fallback values
+                class NotificationKinds:
+                    TOAST = 1
+                class KnownNotificationBindings:
+                    @staticmethod
+                    def get_toast_generic():
+                        return "ToastGeneric"
+            
+            # Skip ApiInformation check - assume it's supported on Windows 10/11
+            print("[WINRT] UserNotificationListener module loaded")
             
             # Get the listener instance
             self.notification_listener = UserNotificationListener.get_current()
