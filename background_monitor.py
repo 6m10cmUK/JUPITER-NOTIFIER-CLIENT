@@ -46,7 +46,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class BackgroundMonitor:
-    def __init__(self, ws_url="ws://localhost:8080"):
+    def __init__(self, ws_url="wss://site--jupiter-system--6qtwyp8fx6v7.code.run"):
         self.ws_url = ws_url
         self.ws = None
         self.running = False
