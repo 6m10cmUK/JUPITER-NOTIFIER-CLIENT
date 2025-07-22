@@ -38,6 +38,7 @@ class FullScreenNotification:
         self.close_event = threading.Event()
         self.websocket = None
         self.should_send_dismiss = False
+        self.auto_close_id = None
         
     def show_notification(self, title, message, duration=DEFAULT_DURATION, sender=None):
         """
@@ -158,7 +159,7 @@ class FullScreenNotification:
             
             # 自動的に閉じるタイマー（最初のウィンドウに設定）
             if self.windows:
-                self.windows[0].after(duration, lambda: self.close_all_notifications(send_dismiss=False))
+                self.auto_close_id = self.windows[0].after(duration, lambda: self.close_all_notifications(send_dismiss=False))
             
             # メインループ（最初のウィンドウで実行）
             if self.windows:
@@ -171,17 +172,25 @@ class FullScreenNotification:
     def close_all_notifications(self, send_dismiss=True):
         """全ての通知ウィンドウを閉じる"""
         # ウィンドウが存在する場合は閉じる
-        if self.windows:
-            for window in self.windows:
-                try:
-                    window.quit()
-                    window.destroy()
-                except:
-                    pass
+        windows_to_close = self.windows.copy()  # コピーを作成
+        self.windows = []  # 先にクリア
+        self.is_showing = False  # フラグも先にリセット
         
-        # 状態を必ずリセット
-        self.windows = []
-        self.is_showing = False
+        # タイマーをキャンセル
+        if self.auto_close_id and windows_to_close:
+            try:
+                windows_to_close[0].after_cancel(self.auto_close_id)
+                self.auto_close_id = None
+            except:
+                pass
+        
+        for window in windows_to_close:
+            try:
+                window.quit()
+                window.destroy()
+            except:
+                pass
+        
         self.close_event.set()
         
         # 他のクライアントにも消去を通知
