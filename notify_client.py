@@ -182,7 +182,8 @@ class FullScreenNotification:
         self.close_event.set()
         
         # 他のクライアントにも消去を通知
-        if send_dismiss and hasattr(self, 'should_send_dismiss'):
+        if send_dismiss:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去フラグを設定しました")
             self.should_send_dismiss = True
 
 
