@@ -18,6 +18,7 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 import winsound
+import screeninfo
 
 # .envファイルを読み込み
 load_dotenv()
@@ -32,12 +33,13 @@ class FullScreenNotification:
     """全画面通知を表示するクラス"""
     
     def __init__(self):
-        self.root = None
+        self.windows = []  # 各モニター用のウィンドウリスト
         self.is_showing = False
+        self.close_event = threading.Event()
         
     def show_notification(self, title, message, duration=DEFAULT_DURATION, sender=None):
         """
-        全画面通知を表示
+        全画面通知を表示（全モニターに表示）
         
         Args:
             title: 通知タイトル
@@ -48,8 +50,10 @@ class FullScreenNotification:
         if self.is_showing:
             return
             
-        def create_window():
+        def create_windows():
             self.is_showing = True
+            self.windows = []
+            self.close_event.clear()
             
             # ビープ音を再生（Windowsのみ）
             try:
@@ -57,99 +61,126 @@ class FullScreenNotification:
             except:
                 pass  # ビープ音が再生できない場合は無視
             
-            self.root = tk.Tk()
-            self.root.attributes('-fullscreen', True)
-            self.root.attributes('-topmost', True)
-            self.root.attributes('-alpha', 0.75)  # 75%の透明度
-            self.root.configure(bg=BACKGROUND_COLOR)
+            # 全モニターの情報を取得
+            try:
+                monitors = screeninfo.get_monitors()
+            except:
+                # screeninfoが失敗した場合は単一モニターとして処理
+                monitors = [None]
             
-            # ウィンドウタイトル
-            self.root.title('JUPITER NOTIFICATION')
-            
-            # メインフレーム
-            main_frame = tk.Frame(self.root, bg=BACKGROUND_COLOR)
-            main_frame.pack(expand=True, fill='both')
-            
-            # フレームもクリック可能に
-            main_frame.bind('<Button-1>', lambda e: self.close_notification())
-            
-            # 送信者情報
-            if sender:
-                sender_font = font.Font(size=24)
-                sender_label = tk.Label(
-                    main_frame,
-                    text=f"From: {sender}",
-                    font=sender_font,
-                    fg='#ff9999',
+            # 各モニターにウィンドウを作成
+            for i, monitor in enumerate(monitors):
+                root = tk.Tk() if i == 0 else tk.Toplevel()
+                
+                # ウィンドウ設定
+                root.attributes('-fullscreen', True)
+                root.attributes('-topmost', True)
+                root.attributes('-alpha', 0.65)  # 65%の透明度
+                root.configure(bg=BACKGROUND_COLOR)
+                root.title('JUPITER NOTIFICATION')
+                
+                # モニター位置に配置
+                if monitor:
+                    root.geometry(f"{monitor.width}x{monitor.height}+{monitor.x}+{monitor.y}")
+                
+                # メインフレーム
+                main_frame = tk.Frame(root, bg=BACKGROUND_COLOR)
+                main_frame.pack(expand=True, fill='both')
+                
+                # フレームもクリック可能に
+                main_frame.bind('<Button-1>', lambda e: self.close_all_notifications())
+                
+                # 送信者情報
+                if sender:
+                    sender_font = font.Font(size=24)
+                    sender_label = tk.Label(
+                        main_frame,
+                        text=f"From: {sender}",
+                        font=sender_font,
+                        fg='#ff9999',
+                        bg=BACKGROUND_COLOR,
+                        cursor='hand2'
+                    )
+                    sender_label.pack(pady=(100, 20))
+                    sender_label.bind('<Button-1>', lambda e: self.close_all_notifications())
+                
+                # タイトル
+                title_font = font.Font(size=72, weight='bold')
+                title_label = tk.Label(
+                    main_frame, 
+                    text=title, 
+                    font=title_font,
+                    fg='white',
                     bg=BACKGROUND_COLOR,
                     cursor='hand2'
                 )
-                sender_label.pack(pady=(100, 20))
-                sender_label.bind('<Button-1>', lambda e: self.close_notification())
+                title_label.pack(expand=True, pady=(0, 50))
+                title_label.bind('<Button-1>', lambda e: self.close_all_notifications())
+                
+                # メッセージ
+                msg_font = font.Font(size=48)
+                msg_label = tk.Label(
+                    main_frame,
+                    text=message,
+                    font=msg_font,
+                    fg='white',
+                    bg=BACKGROUND_COLOR,
+                    wraplength=1200,
+                    justify='center',
+                    cursor='hand2'
+                )
+                msg_label.pack(expand=True)
+                msg_label.bind('<Button-1>', lambda e: self.close_all_notifications())
+                
+                # 操作説明
+                info_font = font.Font(size=16)
+                info_label = tk.Label(
+                    main_frame,
+                    text="画面をクリックまたは[ESC]キーで閉じる",
+                    font=info_font,
+                    fg='#cccccc',
+                    bg=BACKGROUND_COLOR,
+                    cursor='hand2'
+                )
+                info_label.pack(side='bottom', pady=50)
+                info_label.bind('<Button-1>', lambda e: self.close_all_notifications())
+                
+                # ESCキーで閉じる
+                root.bind('<Escape>', lambda e: self.close_all_notifications())
+                
+                # クリックでも閉じる
+                root.bind('<Button-1>', lambda e: self.close_all_notifications())
+                
+                self.windows.append(root)
             
-            # タイトル
-            title_font = font.Font(size=72, weight='bold')
-            title_label = tk.Label(
-                main_frame, 
-                text=title, 
-                font=title_font,
-                fg='white',
-                bg=BACKGROUND_COLOR,
-                cursor='hand2'
-            )
-            title_label.pack(expand=True, pady=(0, 50))
-            title_label.bind('<Button-1>', lambda e: self.close_notification())
+            # 自動的に閉じるタイマー（最初のウィンドウに設定）
+            if self.windows:
+                self.windows[0].after(duration, self.close_all_notifications)
             
-            # メッセージ
-            msg_font = font.Font(size=48)
-            msg_label = tk.Label(
-                main_frame,
-                text=message,
-                font=msg_font,
-                fg='white',
-                bg=BACKGROUND_COLOR,
-                wraplength=1200,
-                justify='center',
-                cursor='hand2'
-            )
-            msg_label.pack(expand=True)
-            msg_label.bind('<Button-1>', lambda e: self.close_notification())
+            # メインループ（最初のウィンドウで実行）
+            if self.windows:
+                self.windows[0].mainloop()
             
-            # 操作説明
-            info_font = font.Font(size=16)
-            info_label = tk.Label(
-                main_frame,
-                text="画面をクリックまたは[ESC]キーで閉じる",
-                font=info_font,
-                fg='#cccccc',
-                bg=BACKGROUND_COLOR,
-                cursor='hand2'
-            )
-            info_label.pack(side='bottom', pady=50)
-            info_label.bind('<Button-1>', lambda e: self.close_notification())
-            
-            # 自動的に閉じる
-            self.root.after(duration, self.close_notification)
-            
-            # ESCキーで閉じる
-            self.root.bind('<Escape>', lambda e: self.close_notification())
-            
-            # クリックでも閉じる
-            self.root.bind('<Button-1>', lambda e: self.close_notification())
-            
-            self.root.mainloop()
-            
-        thread = threading.Thread(target=create_window)
+        thread = threading.Thread(target=create_windows)
         thread.daemon = True
         thread.start()
     
-    def close_notification(self):
-        """通知を閉じる"""
-        if self.root:
-            self.root.quit()
-            self.root.destroy()
-            self.root = None
-            self.is_showing = False
+    def close_all_notifications(self):
+        """全ての通知ウィンドウを閉じる"""
+        if not self.windows:
+            return
+            
+        # 全てのウィンドウを閉じる
+        for window in self.windows:
+            try:
+                window.quit()
+                window.destroy()
+            except:
+                pass
+        
+        self.windows = []
+        self.is_showing = False
+        self.close_event.set()
 
 
 async def connect_to_bot():
