@@ -17,6 +17,7 @@ import sys
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+import winsound
 
 # .envファイルを読み込み
 load_dotenv()
@@ -49,6 +50,13 @@ class FullScreenNotification:
             
         def create_window():
             self.is_showing = True
+            
+            # ビープ音を再生（Windowsのみ）
+            try:
+                winsound.Beep(1000, 100)  # 1000Hzで100ミリ秒
+            except:
+                pass  # ビープ音が再生できない場合は無視
+            
             self.root = tk.Tk()
             self.root.attributes('-fullscreen', True)
             self.root.attributes('-topmost', True)
