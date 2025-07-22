@@ -50,6 +50,7 @@ class FullScreenNotification:
             sender: 送信者名
         """
         if self.is_showing:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 既に通知を表示中のためスキップします")
             return
             
         def create_windows():
@@ -169,17 +170,16 @@ class FullScreenNotification:
     
     def close_all_notifications(self, send_dismiss=True):
         """全ての通知ウィンドウを閉じる"""
-        if not self.windows:
-            return
-            
-        # 全てのウィンドウを閉じる
-        for window in self.windows:
-            try:
-                window.quit()
-                window.destroy()
-            except:
-                pass
+        # ウィンドウが存在する場合は閉じる
+        if self.windows:
+            for window in self.windows:
+                try:
+                    window.quit()
+                    window.destroy()
+                except:
+                    pass
         
+        # 状態を必ずリセット
         self.windows = []
         self.is_showing = False
         self.close_event.set()
@@ -246,7 +246,9 @@ async def connect_to_bot():
                             
                             elif data.get('type') == 'dismiss_notification':
                                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知受信: {data.get('dismissed_by')}")
+                                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 現在の状態: is_showing={notifier.is_showing}, windows数={len(notifier.windows)}")
                                 notifier.close_all_notifications(send_dismiss=False)
+                                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去完了: is_showing={notifier.is_showing}")
                                 
                         except json.JSONDecodeError as e:
                             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] JSONパースエラー: {e}")
