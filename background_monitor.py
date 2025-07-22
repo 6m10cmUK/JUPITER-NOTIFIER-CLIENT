@@ -301,44 +301,8 @@ class BackgroundMonitor:
     
     def monitor_active_processes(self):
         """Monitor active processes for notification activity"""
-        notifications = []
-        
-        try:
-            for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
-                try:
-                    proc_name = proc.info['name'].lower()
-                    
-                    # Check known messaging apps
-                    if any(app in proc_name for app in ['slack', 'teams', 'discord', 'skype']):
-                        # Check for CPU/memory spikes (might indicate new notification)
-                        if proc.info['cpu_percent'] > 5 or proc.info['memory_percent'] > 0.5:
-                            print(f"\n[ACTIVITY] {proc_name} - CPU: {proc.info['cpu_percent']:.1f}% Memory: {proc.info['memory_percent']:.1f}%")
-                            
-                            # Try to find associated windows
-                            def window_callback(hwnd, pid):
-                                try:
-                                    _, window_pid = win32process.GetWindowThreadProcessId(hwnd)
-                                    if window_pid == pid and win32gui.IsWindowVisible(hwnd):
-                                        texts = self.get_all_window_text(hwnd)
-                                        if texts:
-                                            notifications.append({
-                                                'app': self.known_apps.get(proc_name, proc_name),
-                                                'title': texts[0] if texts else proc_name,
-                                                'message': ' '.join(texts[1:]) if len(texts) > 1 else 'New activity'
-                                            })
-                                except:
-                                    pass
-                                return True
-                                
-                            win32gui.EnumWindows(window_callback, proc.info['pid'])
-                            
-                except Exception:
-                    pass
-                    
-        except Exception as e:
-            logger.error(f"Process monitoring error: {e}")
-            
-        return notifications
+        # プロセス監視を無効化（ACTIVITYメッセージを削除）
+        return []
     
     def background_monitor_loop(self):
         """Background monitoring loop"""
@@ -347,8 +311,9 @@ class BackgroundMonitor:
         last_check = time.time()
         last_status = time.time()
         check_interval = 1.0  # Check every second
-        status_interval = 30.0  # Status update every 30 seconds
+        status_interval = 120.0  # Status update every 2 minutes
         check_count = 0
+        notification_count = 0
         
         while self.running:
             try:
@@ -362,19 +327,18 @@ class BackgroundMonitor:
                     for notif in notifications:
                         self.notification_queue.put(notif)
                     
-                    # Check active processes
-                    process_notifications = self.monitor_active_processes()
-                    
-                    for notif in process_notifications:
-                        self.notification_queue.put(notif)
+                    # プロセス監視を削除（ACTIVITYログを防ぐ）
+                    # process_notifications = self.monitor_active_processes()
+                    # for notif in process_notifications:
+                    #     self.notification_queue.put(notif)
                     
                     last_check = current_time
                     check_count += 1
                 
-                # Status update
-                if current_time - last_status >= status_interval:
-                    print(f"\n[STATUS] {datetime.now().strftime('%H:%M:%S')} - Monitoring active (Checks: {check_count})")
-                    last_status = current_time
+                # ステータス表示を削除（コメントアウト）
+                # if current_time - last_status >= status_interval:
+                #     print(f"\n[STATUS] {datetime.now().strftime('%H:%M:%S')} - Monitoring active (Checks: {check_count})")
+                #     last_status = current_time
                 
                 # Small sleep to prevent CPU overuse
                 time.sleep(0.1)
@@ -428,9 +392,8 @@ class BackgroundMonitor:
         monitor_thread.daemon = True
         monitor_thread.start()
         
-        print("\n[MONITOR ACTIVE] Watching for notifications...")
+        print("\n[MONITOR ACTIVE] Watching for Slack mentions...")
         print("=" * 60)
-        logger.info("Background monitor is running...")
         
         try:
             # Process queue asynchronously
