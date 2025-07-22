@@ -52,6 +52,7 @@ class FullScreenNotification:
             self.root = tk.Tk()
             self.root.attributes('-fullscreen', True)
             self.root.attributes('-topmost', True)
+            self.root.attributes('-alpha', 0.75)  # 75%の透明度
             self.root.configure(bg=BACKGROUND_COLOR)
             
             # ウィンドウタイトル
@@ -61,6 +62,9 @@ class FullScreenNotification:
             main_frame = tk.Frame(self.root, bg=BACKGROUND_COLOR)
             main_frame.pack(expand=True, fill='both')
             
+            # フレームもクリック可能に
+            main_frame.bind('<Button-1>', lambda e: self.close_notification())
+            
             # 送信者情報
             if sender:
                 sender_font = font.Font(size=24)
@@ -69,9 +73,11 @@ class FullScreenNotification:
                     text=f"From: {sender}",
                     font=sender_font,
                     fg='#ff9999',
-                    bg=BACKGROUND_COLOR
+                    bg=BACKGROUND_COLOR,
+                    cursor='hand2'
                 )
                 sender_label.pack(pady=(100, 20))
+                sender_label.bind('<Button-1>', lambda e: self.close_notification())
             
             # タイトル
             title_font = font.Font(size=72, weight='bold')
@@ -80,9 +86,11 @@ class FullScreenNotification:
                 text=title, 
                 font=title_font,
                 fg='white',
-                bg=BACKGROUND_COLOR
+                bg=BACKGROUND_COLOR,
+                cursor='hand2'
             )
             title_label.pack(expand=True, pady=(0, 50))
+            title_label.bind('<Button-1>', lambda e: self.close_notification())
             
             # メッセージ
             msg_font = font.Font(size=48)
@@ -93,20 +101,24 @@ class FullScreenNotification:
                 fg='white',
                 bg=BACKGROUND_COLOR,
                 wraplength=1200,
-                justify='center'
+                justify='center',
+                cursor='hand2'
             )
             msg_label.pack(expand=True)
+            msg_label.bind('<Button-1>', lambda e: self.close_notification())
             
             # 操作説明
             info_font = font.Font(size=16)
             info_label = tk.Label(
                 main_frame,
-                text="[ESC]キーで閉じる",
+                text="画面をクリックまたは[ESC]キーで閉じる",
                 font=info_font,
                 fg='#cccccc',
-                bg=BACKGROUND_COLOR
+                bg=BACKGROUND_COLOR,
+                cursor='hand2'
             )
             info_label.pack(side='bottom', pady=50)
+            info_label.bind('<Button-1>', lambda e: self.close_notification())
             
             # 自動的に閉じる
             self.root.after(duration, self.close_notification)
