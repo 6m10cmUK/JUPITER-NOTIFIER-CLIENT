@@ -37,11 +37,6 @@ choice /C YN /M "Press Y to register, N to skip"
 if %errorlevel%==1 (
     echo Registering with Task Scheduler...
     schtasks /create /tn "JupiterNotifierClient" /tr "%CURRENT_DIR%run.bat" /sc onlogon /rl highest /f
-    if %errorlevel%==0 (
-        echo Task Scheduler registration complete.
-    ) else (
-        echo Task Scheduler registration failed.
-    )
 )
 
 echo.
