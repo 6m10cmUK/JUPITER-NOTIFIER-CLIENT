@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 設定
-WS_SERVER_URL = os.getenv('WS_SERVER_URL', 'wss://jupiter-system-jupiter-system-r6m10cms-team.p1.northflank.app')
+WS_SERVER_URL = os.getenv('WS_SERVER_URL', 'wss://site--jupiter-system--6qtwyp8fx6v7.code.run')
 DEFAULT_DURATION = 10000  # 10秒固定
 BACKGROUND_COLOR = '#610610'  # 暗い赤色
 

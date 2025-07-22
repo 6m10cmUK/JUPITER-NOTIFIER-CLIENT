@@ -17,8 +17,7 @@ REM Activate virtual environment
 call venv\Scripts\activate.bat
 
 REM Set default WebSocket URL
-REM Note: Replace with your actual Northflank URL
-set WS_SERVER_URL=wss://jupiter-system-jupiter-system-r6m10cms-team.p1.northflank.app
+set WS_SERVER_URL=wss://site--jupiter-system--6qtwyp8fx6v7.code.run
 
 REM Load environment variables from .env if exists
 if exist .env (
