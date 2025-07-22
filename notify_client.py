@@ -196,14 +196,17 @@ async def connect_to_bot():
     
     async def send_dismiss_notification():
         """消去通知を送信"""
-        if notifier.websocket and notifier.websocket.open:
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] WebSocket状態: open={notifier.websocket.open}")
-            await notifier.websocket.send(json.dumps({
-                "type": "dismiss_notification",
-                "client_type": "windows_notifier"
-            }))
-        else:
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] WebSocket未接続のため消去通知を送信できません")
+        try:
+            if notifier.websocket:
+                await notifier.websocket.send(json.dumps({
+                    "type": "dismiss_notification",
+                    "client_type": "windows_notifier"
+                }))
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知を送信しました")
+            else:
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] WebSocket未接続のため消去通知を送信できません")
+        except Exception as e:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知送信中にエラー: {e}")
     
     notifier.send_dismiss_notification = send_dismiss_notification
     
@@ -254,7 +257,6 @@ async def connect_to_bot():
                         if notifier.should_send_dismiss:
                             try:
                                 await send_dismiss_notification()
-                                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知を送信しました")
                                 notifier.should_send_dismiss = False
                             except Exception as e:
                                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 消去通知送信エラー: {e}")
