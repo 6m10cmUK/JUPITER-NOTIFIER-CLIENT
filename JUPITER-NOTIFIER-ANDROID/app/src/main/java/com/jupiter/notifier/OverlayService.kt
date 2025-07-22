@@ -25,6 +25,7 @@ class OverlayService : Service() {
     private var overlayView: View? = null
     private val handler = Handler(Looper.getMainLooper())
     private var toneGenerator: ToneGenerator? = null
+    private var originalAlarmVolume: Int = 0
     
     companion object {
         private const val TAG = "OverlayService"
@@ -147,19 +148,26 @@ class OverlayService : Service() {
         try {
             // アラーム音量で再生
             val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            val alarmVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+            
+            // 一時的にアラーム音量を最大に設定
+            val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
             val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-            val volumePercent = (alarmVolume.toFloat() / maxVolume.toFloat() * 100).toInt()
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
             
-            toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, volumePercent)
+            // ToneGeneratorを最大音量（100）で作成
+            toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
             
-            // タップするまで連続で音を鳴らす
+            // より大きな音のトーンタイプを使用
             handler.post(object : Runnable {
                 override fun run() {
-                    toneGenerator?.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 1000)
-                    handler.postDelayed(this, 1100) // 1.1秒ごとに繰り返し
+                    // TONE_CDMA_EMERGENCY_RINGBACKは緊急音でより大きい
+                    toneGenerator?.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 1000)
+                    handler.postDelayed(this, 1050) // 1.05秒ごとに繰り返し（音の隙間を減らす）
                 }
             })
+            
+            // 元の音量を保存（後で復元するため）
+            originalAlarmVolume = currentVolume
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -168,6 +176,14 @@ class OverlayService : Service() {
     private fun stopAlarmSound() {
         toneGenerator?.release()
         toneGenerator = null
+        
+        // 元の音量に戻す
+        try {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, originalAlarmVolume, 0)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
     
     private fun vibrate() {
