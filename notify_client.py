@@ -102,7 +102,7 @@ class FullScreenNotification:
                 # フレームもクリック可能に
                 def on_frame_click(event):
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] フレームがクリックされました")
-                    self.close_all_notifications()
+                    self.close_all_notifications(send_dismiss=True)
                 main_frame.bind('<Button-1>', on_frame_click)
                 
                 # 送信者情報
@@ -117,7 +117,7 @@ class FullScreenNotification:
                         cursor='hand2'
                     )
                     sender_label.pack(pady=(100, 20))
-                    sender_label.bind('<Button-1>', lambda e: self.close_all_notifications())
+                    sender_label.bind('<Button-1>', lambda e: self.close_all_notifications(send_dismiss=True))
                 
                 # メッセージ（大きく表示）
                 msg_font = font.Font(size=96, weight='bold')
@@ -132,7 +132,7 @@ class FullScreenNotification:
                     cursor='hand2'
                 )
                 msg_label.pack(expand=True, pady=(0, 50))
-                msg_label.bind('<Button-1>', lambda e: self.close_all_notifications())
+                msg_label.bind('<Button-1>', lambda e: self.close_all_notifications(send_dismiss=True))
                 
                 # 操作説明
                 info_font = font.Font(size=16)
@@ -145,19 +145,19 @@ class FullScreenNotification:
                     cursor='hand2'
                 )
                 info_label.pack(side='bottom', pady=50)
-                info_label.bind('<Button-1>', lambda e: self.close_all_notifications())
+                info_label.bind('<Button-1>', lambda e: self.close_all_notifications(send_dismiss=True))
                 
                 # ESCキーで閉じる
-                root.bind('<Escape>', lambda e: self.close_all_notifications())
+                root.bind('<Escape>', lambda e: self.close_all_notifications(send_dismiss=True))
                 
                 # クリックでも閉じる
-                root.bind('<Button-1>', lambda e: self.close_all_notifications())
+                root.bind('<Button-1>', lambda e: self.close_all_notifications(send_dismiss=True))
                 
                 self.windows.append(root)
             
             # 自動的に閉じるタイマー（最初のウィンドウに設定）
             if self.windows:
-                self.windows[0].after(duration, self.close_all_notifications)
+                self.windows[0].after(duration, lambda: self.close_all_notifications(send_dismiss=False))
             
             # メインループ（最初のウィンドウで実行）
             if self.windows:
