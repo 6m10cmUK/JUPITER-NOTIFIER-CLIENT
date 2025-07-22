@@ -62,8 +62,8 @@ class BackgroundMonitor:
             'firefox.exe': 'Firefox',
             'thunderbird.exe': 'Thunderbird'
         }
-        self.slack_only_mode = True  # Slackの通知のみを処理
-        self.mention_only_mode = True  # メンションのみを処理
+        self.slack_only_mode = False  # すべての通知を処理
+        self.mention_only_mode = False  # すべての通知を表示
         
     async def connect_websocket(self):
         """Connect to WebSocket server"""
@@ -217,7 +217,11 @@ class BackgroundMonitor:
                     'Windows.UI.Core.CoreWindow',
                     'Shell_ToastWnd',
                     'ToastChildWindowClass',
-                    'NativeHWNDHost'
+                    'NativeHWNDHost',
+                    'ApplicationFrameWindow',
+                    'Windows.UI.Core.CoreComponentsWindowClass',
+                    'Action center',
+                    'New notification'
                 ]
                 
                 if any(nc in class_name for nc in notification_classes):
@@ -226,6 +230,13 @@ class BackgroundMonitor:
                         rect = win32gui.GetWindowRect(hwnd)
                         screen_width = win32api.GetSystemMetrics(0)
                         screen_height = win32api.GetSystemMetrics(1)
+                        
+                        # デバッグ: 検出したウィンドウ情報を表示
+                        window_text = win32gui.GetWindowText(hwnd)
+                        if window_text:  # テキストがある場合のみ
+                            print(f"\n[DEBUG] Found window: {class_name}")
+                            print(f"  Text: {window_text}")
+                            print(f"  Position: {rect}")
                         
                         # Check if in notification area (bottom-right)
                         if rect[0] > screen_width - 600 and rect[1] > screen_height - 600:
@@ -392,7 +403,7 @@ class BackgroundMonitor:
         monitor_thread.daemon = True
         monitor_thread.start()
         
-        print("\n[MONITOR ACTIVE] Watching for Slack mentions...")
+        print("\n[MONITOR ACTIVE] Watching for all notifications...")
         print("=" * 60)
         
         try:
@@ -406,30 +417,18 @@ class BackgroundMonitor:
                 await self.ws.close()
             logger.info("Monitor stopped")
 
-def save_pid():
-    """Save current process ID to file"""
-    try:
-        with open('monitor.pid', 'w') as f:
-            f.write(str(os.getpid()))
-    except Exception as e:
-        logger.error(f"Failed to save PID: {e}")
 
 def main():
     """Main entry point"""
-    # Save process ID
-    save_pid()
     
     print("=" * 60)
-    print("     SLACK MENTION MONITOR")
+    print("     NOTIFICATION MONITOR")
     print("=" * 60)
-    print("\nMode: Slack Mentions Only")
+    print("\nMode: All Notifications")
     print("\nFeatures:")
-    print("  ✓ Monitors Slack notifications")
-    print("  ✓ Filters for @mentions only")
-    print("  ✓ Logs to slack_mentions.log")
+    print("  ✓ Monitors all Windows notifications")
     print("  ✓ Real-time console output")
-    print("\nMention Keywords:")
-    print("  @, mentioned you, メンション, から, replied, 返信")
+    print("  ✓ Logs to notification_monitor.log")
     print("\nStatus:")
     print("  → Connecting to WebSocket server...")
     print("\nPress Ctrl+C to stop")
