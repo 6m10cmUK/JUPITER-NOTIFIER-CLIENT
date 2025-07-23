@@ -19,7 +19,9 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import android.media.MediaPlayer
 import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.util.Log
+import kotlin.random.Random
 
 class OverlayService : Service() {
     
@@ -161,7 +163,7 @@ class OverlayService : Service() {
                 return
             }
             
-            // MediaPlayerを使用してシステムのアラーム音を再生
+            // MediaPlayerを使用してランダムな着信音を再生
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -170,14 +172,11 @@ class OverlayService : Service() {
                         .build()
                 )
                 
-                // システムのデフォルトアラーム音を使用
-                val alarmUri = android.media.RingtoneManager.getDefaultUri(
-                    android.media.RingtoneManager.TYPE_ALARM
-                ) ?: android.media.RingtoneManager.getDefaultUri(
-                    android.media.RingtoneManager.TYPE_NOTIFICATION
-                )
+                // ランダムに着信音を選択
+                val ringtoneUri = getRandomRingtone()
+                Log.d(TAG, "選択された着信音: $ringtoneUri")
                 
-                setDataSource(applicationContext, alarmUri)
+                setDataSource(applicationContext, ringtoneUri)
                 isLooping = true  // ループ再生
                 
                 // 音量をブースト（1.5倍のゲイン）
@@ -201,6 +200,45 @@ class OverlayService : Service() {
             })
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+    
+    private fun getRandomRingtone(): android.net.Uri {
+        // 利用可能な着信音の種類
+        val ringtoneTypes = listOf(
+            RingtoneManager.TYPE_ALARM,
+            RingtoneManager.TYPE_NOTIFICATION,
+            RingtoneManager.TYPE_RINGTONE
+        )
+        
+        // すべての着信音を取得
+        val allRingtones = mutableListOf<android.net.Uri>()
+        
+        ringtoneTypes.forEach { type ->
+            val ringtoneManager = RingtoneManager(this)
+            ringtoneManager.setType(type)
+            val cursor = ringtoneManager.cursor
+            
+            while (cursor.moveToNext()) {
+                val uri = ringtoneManager.getRingtoneUri(cursor.position)
+                if (uri != null) {
+                    allRingtones.add(uri)
+                }
+            }
+        }
+        
+        // デフォルトの着信音も追加
+        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)?.let { allRingtones.add(it) }
+        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)?.let { allRingtones.add(it) }
+        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)?.let { allRingtones.add(it) }
+        
+        // ランダムに選択（リストが空の場合はデフォルトのアラーム音を返す）
+        return if (allRingtones.isNotEmpty()) {
+            allRingtones[Random.nextInt(allRingtones.size)]
+        } else {
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                ?: android.net.Uri.EMPTY
         }
     }
     
