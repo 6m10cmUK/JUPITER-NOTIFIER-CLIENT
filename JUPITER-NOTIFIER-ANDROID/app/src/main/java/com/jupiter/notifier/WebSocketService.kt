@@ -11,17 +11,28 @@ import okhttp3.*
 import okio.ByteString
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import android.os.PowerManager
+import android.os.Handler
+import android.os.Looper
 
 class WebSocketService : Service() {
     
     private var webSocket: WebSocket? = null
     private lateinit var client: OkHttpClient
     private var wsUrl: String = ""
+    private var wakeLock: PowerManager.WakeLock? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var reconnectAttempts = 0
+    private var lastPingTime = 0L
     
     companion object {
         private const val TAG = "WebSocketService"
         private const val CHANNEL_ID = "jupiter_notifier_channel"
         private const val NOTIFICATION_ID = 1
+        private const val PING_INTERVAL = 30000L // 30秒ごとにping
+        private const val RECONNECT_DELAY_BASE = 1000L // 基本再接続遅延
+        private const val MAX_RECONNECT_DELAY = 60000L // 最大再接続遅延
+        private const val WAKELOCK_TAG = "JupiterNotifier:WebSocketWakeLock"
         var isRunning = false
             private set
         var instance: WebSocketService? = null
@@ -33,8 +44,19 @@ class WebSocketService : Service() {
         createNotificationChannel()
         instance = this
         
+        // WakeLockを取得（部分的なWakeLock）
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            WAKELOCK_TAG
+        )
+        
+        // OkHttpClientをpingサポート付きで設定
         client = OkHttpClient.Builder()
-            .readTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.MINUTES) // タイムアウトなし
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .pingInterval(PING_INTERVAL, TimeUnit.MILLISECONDS)
+            .retryOnConnectionFailure(true)
             .build()
     }
     
@@ -60,13 +82,22 @@ class WebSocketService : Service() {
         startForeground(NOTIFICATION_ID, createNotification())
         isRunning = true
         
+        // WakeLockを取得
+        wakeLock?.acquire(10*60*1000L /*10 minutes*/)
+        
         connectWebSocket()
+        startPingScheduler()
         
         return START_STICKY
     }
     
     private fun connectWebSocket() {
-        Log.d(TAG, "Connecting to: $wsUrl")
+        if (webSocket != null) {
+            webSocket?.close(1000, "Reconnecting")
+            webSocket = null
+        }
+        
+        Log.d(TAG, "Connecting to: $wsUrl (attempt ${reconnectAttempts + 1})")
         
         val request = Request.Builder()
             .url(wsUrl)
@@ -75,6 +106,8 @@ class WebSocketService : Service() {
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(TAG, "WebSocket connected")
+                reconnectAttempts = 0 // リセット
+                lastPingTime = System.currentTimeMillis()
                 
                 // 登録メッセージを送信
                 val registerMessage = JSONObject().apply {
@@ -87,11 +120,22 @@ class WebSocketService : Service() {
             
             override fun onMessage(webSocket: WebSocket, text: String) {
                 Log.d(TAG, "Message received: $text")
+                lastPingTime = System.currentTimeMillis()
+                
+                // WakeLockを更新
+                wakeLock?.let {
+                    if (it.isHeld) {
+                        it.release()
+                    }
+                    it.acquire(10*60*1000L /*10 minutes*/)
+                }
+                
                 handleMessage(text)
             }
             
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                 Log.d(TAG, "Bytes received")
+                lastPingTime = System.currentTimeMillis()
             }
             
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -101,9 +145,7 @@ class WebSocketService : Service() {
             
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.e(TAG, "WebSocket error", t)
-                // 5秒後に再接続
-                Thread.sleep(5000)
-                connectWebSocket()
+                scheduleReconnect()
             }
         })
     }
@@ -192,11 +234,70 @@ class WebSocketService : Service() {
         }
     }
     
+    private fun scheduleReconnect() {
+        reconnectAttempts++
+        val delay = Math.min(
+            RECONNECT_DELAY_BASE * Math.pow(2.0, reconnectAttempts.toDouble()).toLong(),
+            MAX_RECONNECT_DELAY
+        )
+        
+        Log.d(TAG, "Scheduling reconnect in ${delay}ms (attempt $reconnectAttempts)")
+        
+        handler.postDelayed({
+            if (isRunning) {
+                connectWebSocket()
+            }
+        }, delay)
+    }
+    
+    private fun startPingScheduler() {
+        handler.postDelayed(object : Runnable {
+            override fun run() {
+                if (isRunning) {
+                    val currentTime = System.currentTimeMillis()
+                    val timeSinceLastPing = currentTime - lastPingTime
+                    
+                    // 60秒以上応答がない場合は再接続
+                    if (timeSinceLastPing > 60000) {
+                        Log.w(TAG, "No ping response for ${timeSinceLastPing}ms, reconnecting...")
+                        webSocket?.close(1000, "Ping timeout")
+                        scheduleReconnect()
+                    } else {
+                        // 手動でpingを送信（OkHttpの自動pingに加えて）
+                        try {
+                            val pingMessage = JSONObject().apply {
+                                put("type", "ping")
+                                put("timestamp", currentTime)
+                            }
+                            webSocket?.send(pingMessage.toString())
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error sending ping", e)
+                        }
+                    }
+                    
+                    // 次のチェックをスケジュール
+                    handler.postDelayed(this, PING_INTERVAL)
+                }
+            }
+        }, PING_INTERVAL)
+    }
+    
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "Service destroyed - attempting restart")
         isRunning = false
         instance = null
+        
+        // ハンドラーのコールバックをクリア
+        handler.removeCallbacksAndMessages(null)
+        
+        // WakeLockを解放
+        wakeLock?.let {
+            if (it.isHeld) {
+                it.release()
+            }
+        }
+        
         webSocket?.close(1000, "Service stopped")
         
         // サービスが強制終了された場合、自動で再起動
@@ -212,7 +313,7 @@ class WebSocketService : Service() {
             )
             
             val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarmManager.set(
+            alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 System.currentTimeMillis() + 1000,  // 1秒後に再起動
                 pendingIntent

@@ -15,6 +15,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.os.PowerManager
 
 class MainActivity : AppCompatActivity() {
     
@@ -25,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val OVERLAY_PERMISSION_REQUEST_CODE = 1001
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1002
+        private const val BATTERY_OPTIMIZATION_REQUEST_CODE = 1003
         private const val PREFS_NAME = "JupiterNotifierPrefs"
         private const val KEY_WS_URL = "ws_url"
         private const val DEFAULT_WS_URL = "wss://site--jupiter-system--6qtwyp8fx6v7.code.run"
@@ -89,7 +91,23 @@ class MainActivity : AppCompatActivity() {
             }
         }
         
+        // バッテリー最適化の無効化を確認
+        checkBatteryOptimization()
+        
         serviceSwitch.isEnabled = allPermissionsGranted
+    }
+    
+    private fun checkBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                // バッテリー最適化を無効にするダイアログを表示
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivityForResult(intent, BATTERY_OPTIMIZATION_REQUEST_CODE)
+            }
+        }
     }
     
     private fun requestOverlayPermission() {
