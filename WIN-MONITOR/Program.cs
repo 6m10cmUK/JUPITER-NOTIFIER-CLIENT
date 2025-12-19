@@ -9,6 +9,7 @@ using System.Net.WebSockets;
 using System.Text;
 using Newtonsoft.Json;
 using System.Threading;
+using System.IO;
 
 namespace NotificationMonitor
 {
@@ -17,6 +18,9 @@ namespace NotificationMonitor
         private static ClientWebSocket? webSocket;
         private static readonly string wsUrl = "wss://site--jupiter-system--6qtwyp8fx6v7.code.run";
         private static HashSet<uint> knownNotificationIds = new HashSet<uint>();
+        private static List<string> filterKeywords = new List<string>();
+        private static DateTime lastConfigLoad = DateTime.MinValue;
+        private static readonly string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "filter_config.txt");
 
         static async Task Main(string[] args)
         {
@@ -45,6 +49,9 @@ namespace NotificationMonitor
                 return;
             }
 
+            // Load filter configuration
+            LoadFilterConfig();
+
             // Connect to WebSocket
             await ConnectWebSocket();
 
@@ -58,6 +65,13 @@ namespace NotificationMonitor
             while (true)
             {
                 await Task.Delay(1000); // Check every second
+                
+                // Reload config if it's been modified
+                if (IsConfigModified())
+                {
+                    LoadFilterConfig();
+                }
+                
                 await CheckNotifications(listener);
             }
         }
@@ -96,9 +110,8 @@ namespace NotificationMonitor
                             // Extract notification content
                             var (title, message) = ExtractNotificationContent(notification);
 
-                            // Filter for specific mentions only
-                            if (message.Contains("@木林ユピテル") || 
-                                message.Contains("@濱出拓海_Takumi Hamade"))
+                            // Filter based on keywords from config file
+                            if (ShouldProcessNotification(message))
                             {
                                 // Display notification
                                 Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] NEW NOTIFICATION");
@@ -249,6 +262,84 @@ namespace NotificationMonitor
                     webSocket = null;
                 }
             }
+        }
+
+        static void LoadFilterConfig()
+        {
+            try
+            {
+                if (File.Exists(configPath))
+                {
+                    filterKeywords.Clear();
+                    var lines = File.ReadAllLines(configPath);
+                    foreach (var line in lines)
+                    {
+                        var trimmedLine = line.Trim();
+                        if (!string.IsNullOrEmpty(trimmedLine) && !trimmedLine.StartsWith("#"))
+                        {
+                            filterKeywords.Add(trimmedLine);
+                        }
+                    }
+                    lastConfigLoad = DateTime.Now;
+                    Console.WriteLine($"[Config] Loaded {filterKeywords.Count} filter keywords:");
+                    foreach (var keyword in filterKeywords)
+                    {
+                        Console.WriteLine($"  - {keyword}");
+                    }
+                }
+                else
+                {
+                    // Create default config file
+                    var defaultContent = @"# フィルタリング設定ファイル
+# 1行に1つのキーワードを記載してください
+# #で始まる行はコメントとして無視されます
+
+@木林ユピテル
+@濱出拓海_Takumi Hamade
+濱出";
+                    File.WriteAllText(configPath, defaultContent);
+                    Console.WriteLine($"[Config] Created default config file at: {configPath}");
+                    LoadFilterConfig(); // Reload to apply defaults
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Config] Error loading filter config: {ex.Message}");
+                // Fall back to default keywords
+                filterKeywords = new List<string> 
+                { 
+                    "@木林ユピテル", 
+                    "@濱出拓海_Takumi Hamade",
+                    "濱出"
+                };
+            }
+        }
+
+        static bool IsConfigModified()
+        {
+            try
+            {
+                if (File.Exists(configPath))
+                {
+                    var lastWriteTime = File.GetLastWriteTime(configPath);
+                    return lastWriteTime > lastConfigLoad;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        static bool ShouldProcessNotification(string message)
+        {
+            if (filterKeywords.Count == 0)
+                return true; // No filters = process all
+
+            foreach (var keyword in filterKeywords)
+            {
+                if (message.Contains(keyword))
+                    return true;
+            }
+            return false;
         }
     }
 }
