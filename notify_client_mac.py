@@ -27,7 +27,7 @@ load_dotenv()
 WS_SERVER_URL = os.getenv('WS_SERVER_URL', 'wss://site--jupiter-system--6qtwyp8fx6v7.code.run')
 DEFAULT_DURATION = 30000  # 30秒固定
 BACKGROUND_COLOR = '#610610'  # 暗い赤色
-MAIN_LOOP_INTERVAL = 0.01  # 10ms (レスポンス向上のため短縮)
+MAIN_LOOP_INTERVAL = 0.1  # 100ms
 
 
 class NotificationManager:
