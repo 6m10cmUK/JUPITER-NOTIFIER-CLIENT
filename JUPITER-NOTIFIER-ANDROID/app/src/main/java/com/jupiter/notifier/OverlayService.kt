@@ -31,10 +31,13 @@ class OverlayService : Service() {
     private var toneGenerator: ToneGenerator? = null
     private var mediaPlayer: MediaPlayer? = null
     private var originalAlarmVolume: Int = 0
+    private var secondMediaPlayer: MediaPlayer? = null  // 2つ目のMediaPlayer
     
     companion object {
         private const val TAG = "OverlayService"
         private const val DISPLAY_DURATION = 0L // 0 = 無制限（タップするまで表示）
+        private const val PREFS_NAME = "JupiterNotifierPrefs"
+        private const val KEY_VOLUME_PERCENT = "volume_percent"
         var instance: OverlayService? = null
     }
     
@@ -151,17 +154,29 @@ class OverlayService : Service() {
     
     private fun startAlarmSound() {
         try {
-            // アラーム音量で再生
-            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            val alarmVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
-            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-            val volumePercent = (alarmVolume.toFloat() / maxVolume.toFloat() * 100).toInt()
+            // アプリ内で設定された音量を取得
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val volumePercent = prefs.getInt(KEY_VOLUME_PERCENT, 100)
             
             // 音量が0の場合は音を鳴らさない
             if (volumePercent == 0) {
-                Log.d(TAG, "アラーム音量が0のため、音を鳴らしません")
+                Log.d(TAG, "音量設定が0のため、音を鳴らしません")
                 return
             }
+            
+            // アラーム音量の管理
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            originalAlarmVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            
+            // アラーム音量を最大に設定（アプリ内の音量調整のため）
+            if (originalAlarmVolume > 0) {
+                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
+            }
+            
+            // ゲインファクターを計算（0-200% -> 0.0-2.0）
+            val gainFactor = volumePercent / 100.0f
+            Log.d(TAG, "音量設定: $volumePercent% (ゲイン: $gainFactor)")
             
             // MediaPlayerを使用してランダムな着信音を再生
             mediaPlayer = MediaPlayer().apply {
@@ -169,6 +184,7 @@ class OverlayService : Service() {
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_ALARM)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
                         .build()
                 )
                 
@@ -179,18 +195,40 @@ class OverlayService : Service() {
                 setDataSource(applicationContext, ringtoneUri)
                 isLooping = true  // ループ再生
                 
-                // 音量をブースト（1.5倍のゲイン）
-                val gainFactor = 1.5f
+                // 音量を設定（最大2.0）
                 setVolume(gainFactor, gainFactor)
                 
                 prepare()
                 start()
             }
             
+            // 2つ目のMediaPlayerで同じ音を再生（さらに音を大きくするため）
+            if (volumePercent > 100) {
+                secondMediaPlayer = MediaPlayer().apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                            .build()
+                    )
+                    
+                    val secondRingtone = getRandomRingtone()
+                    setDataSource(applicationContext, secondRingtone)
+                    isLooping = true
+                    
+                    // 100%を超える部分の音量
+                    val extraGain = (volumePercent - 100) / 100.0f
+                    setVolume(extraGain, extraGain)
+                    
+                    prepare()
+                    start()
+                }
+            }
+            
             // バックアップとしてToneGeneratorも使用
-            // 音量に1.5倍のゲインをかける（最大100）
-            val adjustedVolume = minOf(100, (volumePercent * 1.5).toInt())
-            toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, adjustedVolume)
+            val toneVolume = minOf(100, volumePercent)
+            toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, toneVolume)
             
             handler.post(object : Runnable {
                 override fun run() {
@@ -252,9 +290,24 @@ class OverlayService : Service() {
         }
         mediaPlayer = null
         
+        // 2つ目のMediaPlayerも停止
+        secondMediaPlayer?.let {
+            if (it.isPlaying) {
+                it.stop()
+            }
+            it.release()
+        }
+        secondMediaPlayer = null
+        
         // ToneGeneratorを停止
         toneGenerator?.release()
         toneGenerator = null
+        
+        // 元のアラーム音量に戻す
+        if (originalAlarmVolume > 0) {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, originalAlarmVolume, 0)
+        }
     }
     
     private fun vibrate() {

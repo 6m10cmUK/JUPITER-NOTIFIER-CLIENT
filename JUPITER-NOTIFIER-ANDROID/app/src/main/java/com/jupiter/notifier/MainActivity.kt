@@ -16,12 +16,16 @@ import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.os.PowerManager
+import android.widget.SeekBar
+import android.widget.TextView
 
 class MainActivity : AppCompatActivity() {
     
     private lateinit var urlEditText: EditText
     private lateinit var serviceSwitch: Switch
     private lateinit var overlayPermissionButton: Button
+    private lateinit var volumeSeekBar: SeekBar
+    private lateinit var volumePercentText: TextView
     
     companion object {
         private const val OVERLAY_PERMISSION_REQUEST_CODE = 1001
@@ -29,7 +33,9 @@ class MainActivity : AppCompatActivity() {
         private const val BATTERY_OPTIMIZATION_REQUEST_CODE = 1003
         private const val PREFS_NAME = "JupiterNotifierPrefs"
         private const val KEY_WS_URL = "ws_url"
+        private const val KEY_VOLUME_PERCENT = "volume_percent"
         private const val DEFAULT_WS_URL = "wss://site--jupiter-system--6qtwyp8fx6v7.code.run"
+        private const val DEFAULT_VOLUME_PERCENT = 100
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,10 +46,30 @@ class MainActivity : AppCompatActivity() {
         urlEditText = findViewById(R.id.urlEditText)
         serviceSwitch = findViewById(R.id.serviceSwitch)
         overlayPermissionButton = findViewById(R.id.overlayPermissionButton)
+        volumeSeekBar = findViewById(R.id.volumeSeekBar)
+        volumePercentText = findViewById(R.id.volumePercentText)
         
-        // 保存されたURLを読み込む
+        // 保存された設定を読み込む
         val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
         urlEditText.setText(prefs.getString(KEY_WS_URL, DEFAULT_WS_URL))
+        
+        // 音量設定を読み込む
+        val savedVolume = prefs.getInt(KEY_VOLUME_PERCENT, DEFAULT_VOLUME_PERCENT)
+        volumeSeekBar.progress = savedVolume
+        volumePercentText.text = "$savedVolume%"
+        
+        // シークバーのリスナー設定
+        volumeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                volumePercentText.text = "$progress%"
+                
+                // 設定を保存
+                prefs.edit().putInt(KEY_VOLUME_PERCENT, progress).apply()
+            }
+            
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
         
         // サービスの状態を確認
         updateServiceSwitch()

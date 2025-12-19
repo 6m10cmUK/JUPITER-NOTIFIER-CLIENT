@@ -1,0 +1,16 @@
+# JUPITER NOTIFIER CLIENT for macOS - Requirements
+
+# WebSocket通信
+websockets>=12.0
+
+# 環境変数管理
+python-dotenv>=1.0.0
+
+# macOS通知
+# tkinterのみを使用するため、追加の通知ライブラリは不要
+
+# 非同期処理（Python 3.7以上に含まれる）
+# asyncio
+
+# GUI（Python標準ライブラリ）
+# tkinter

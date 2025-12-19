@@ -60,9 +60,51 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:text="通知音量"
+        android:textSize="18sp"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <SeekBar
+            android:id="@+id/volumeSeekBar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="200"
+            android:progress="100" />
+
+        <TextView
+            android:id="@+id/volumePercentText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="100%"
+            android:textSize="16sp"
+            android:layout_marginStart="8dp"
+            android:minWidth="50dp"
+            android:gravity="end" />
+
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="※200%まで設定可能（爆音注意！）"
+        android:textSize="12sp"
+        android:textColor="#FF6600"
+        android:layout_marginTop="4dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:text="使い方:\n1. オーバーレイ権限を許可\n2. WebSocketサーバーのURLを入力\n3. 通知サービスをON\n4. Discord で /610 コマンドを実行"
         android:textSize="14sp"
-        android:layout_marginTop="32dp"
+        android:layout_marginTop="16dp"
         android:lineSpacingMultiplier="1.2" />
 
 </LinearLayout>
